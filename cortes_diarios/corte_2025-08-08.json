@@ -1,0 +1,29 @@
+{
+    "fecha": "2025-08-08",
+    "hora": "21:30:40",
+    "total": "72.00",
+    "usuario_que_corto": "roma",
+    "ventas": [
+        {
+            "fecha": "2025-08-08 21:30:21",
+            "usuario": "roma",
+            "productos": [],
+            "total": 0,
+            "fuera_inventario": false
+        },
+        {
+            "fecha": "2025-08-08 21:30:30",
+            "usuario": "roma",
+            "productos": [
+                {
+                    "producto": "hfhf",
+                    "precio": "36",
+                    "piezas": 44,
+                    "cantidad": 2
+                }
+            ],
+            "total": 72.0,
+            "fuera_inventario": false
+        }
+    ]
+}
