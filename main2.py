@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, status
 from typing import List, Optional
 from pydantic import BaseModel
 import json
@@ -121,3 +121,29 @@ def agregar_producto_inventario(item: InventarioItem):
     inventario.append(item.dict())
     guardar_json(INVENTARIO_JSON, data)
     return {"mensaje": "Producto agregado al inventario"}
+
+@app.post("/tienda", status_code=status.HTTP_201_CREATED)
+def crear_tienda(tienda: TiendaInfo):
+    # Verifica que no exista tienda
+    if os.path.exists(TIENDA_JSON):
+        return {"error": "Ya existe una tienda creada"}
+
+    datos_tienda = {
+        "tienda": {
+            "nombre": tienda.nombre,
+            "patron_password": tienda.patron_password
+        },
+        "patron": {
+            "nombre": tienda.nombre,
+            "password": tienda.patron_password
+        },
+        "empleados": {
+            "lista": []
+        },
+        "ultimo_acceso": {},
+        "ultimo_acceso_empleado": {},
+        "ultimo_empleado": {}
+    }
+
+    guardar_json(TIENDA_JSON, datos_tienda)
+    return {"mensaje": "Tienda creada correctamente"}
