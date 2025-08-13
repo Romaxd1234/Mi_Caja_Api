@@ -19,6 +19,10 @@ class Producto(BaseModel):
     piezas: Optional[int] = None
     cantidad: Optional[int] = None
 
+class LoginData(BaseModel):
+    nombre: str
+    patron_password: str
+
 class Venta(BaseModel):
     fecha: str
     usuario: str
@@ -74,6 +78,23 @@ def leer_json(path):
 def guardar_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
+
+@app.post("/tienda/login")
+def login_tienda(login_data: LoginData):
+    if not os.path.exists(TIENDA_JSON):
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
+
+    with open(TIENDA_JSON, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    tienda = data.get("tienda", {})
+    nombre_guardado = tienda.get("nombre", "").lower()
+    password_guardado = tienda.get("patron_password", "")
+
+    if login_data.nombre.lower() == nombre_guardado and login_data.patron_password == password_guardado:
+        return {"mensaje": "Login exitoso"}
+    else:
+        raise HTTPException(status_code=401, detail="Nombre o contraseña incorrectos")
 
 
 # RUTAS DE API

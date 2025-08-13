@@ -7,6 +7,7 @@ from kivy.uix.togglebutton import ToggleButton
 from kivy.uix.image import Image
 from kivy.storage.jsonstore import JsonStore
 import os
+import requests
 import re  # para limpiar nombres de archivos
 
 class BienvenidaScreen(Screen):
@@ -88,27 +89,31 @@ class BienvenidaScreen(Screen):
             self.msg.text = "Las contraseñas no coinciden"
             return
 
-        # Limpiar nombre para usar como nombre de archivo
-        nombre_archivo = re.sub(r'[\\/*?:"<>|]', "_", nombre.lower().replace(" ", "_"))
-        ruta_archivo = f"data/tiendas/{nombre_archivo}.json"
+        # Preparar los datos para enviar a la API
+        data = {
+            "nombre": nombre,
+            "patron_password": contra
+        }
 
-        os.makedirs("data/tiendas", exist_ok=True)
+        try:
+            # Cambia esta URL por la URL pública de tu API
+            url_api = "https://mi-caja-api.onrender.com/tienda"
+            response = requests.post(url_api, json=data)
+            if response.status_code == 201 or response.status_code == 200:
+                # Aquí podrías guardar en config.json sólo la info mínima que necesites para la app local (por ejemplo, la tienda actual)
+                os.makedirs("data", exist_ok=True)
+                store_config = JsonStore("data/config.json")
+                store_config.put("actual", nombre=nombre)
 
-        if os.path.exists(ruta_archivo):
-            self.msg.text = "Esa tienda ya existe. Usa otro nombre o ábrela."
-            return
-
-        # Guardar datos de la tienda
-        store_tienda = JsonStore(ruta_archivo)
-        store_tienda.put("tienda", nombre=nombre, patron_password=contra)
-
-        # Registrar tienda actual en config.json
-        os.makedirs("data", exist_ok=True)
-        store_config = JsonStore("data/config.json")
-        store_config.put("actual", archivo=ruta_archivo)
-
-        self.msg.text = "Tienda creada exitosamente"
-        self.manager.current = "seleccion_rol"
+                self.msg.color = (0, 1, 0, 1)
+                self.msg.text = "Tienda creada exitosamente en la API"
+                self.manager.current = "seleccion_rol"
+            else:
+                # Mostrar mensaje de error desde la API (si manda)
+                error_msg = response.json().get("error", "Error al crear tienda")
+                self.msg.text = error_msg
+        except Exception as e:
+            self.msg.text = f"Error de conexión: {str(e)}"
 
     def abrir_pantalla_abrir_tienda(self, instance):
         self.manager.current = "abrir_tienda"
