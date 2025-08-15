@@ -5,10 +5,7 @@ from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 from kivy.uix.togglebutton import ToggleButton
 from kivy.uix.image import Image
-from kivy.storage.jsonstore import JsonStore
-import os
 import requests
-import re  # para limpiar nombres de archivos
 
 class BienvenidaScreen(Screen):
     def __init__(self, **kwargs):
@@ -89,30 +86,29 @@ class BienvenidaScreen(Screen):
             self.msg.text = "Las contraseñas no coinciden"
             return
 
-        # Preparar los datos para enviar a la API
-        data = {
-            "nombre": nombre,
-            "patron_password": contra
-        }
+        data = {"nombre": nombre, "patron_password": contra}
+        url_api = "https://mi-caja-api.onrender.com/tienda"
 
         try:
-            # Cambia esta URL por la URL pública de tu API
-            url_api = "https://mi-caja-api.onrender.com/tienda"
-            response = requests.post(url_api, json=data)
-            if response.status_code == 201 or response.status_code == 200:
-                # Aquí podrías guardar en config.json sólo la info mínima que necesites para la app local (por ejemplo, la tienda actual)
-                os.makedirs("data", exist_ok=True)
-                store_config = JsonStore("data/config.json")
-                store_config.put("actual", nombre=nombre)
+            response = requests.post(url_api, json=data, timeout=10)
+            try:
+                res_json = response.json()
+            except ValueError:
+                self.msg.text = f"Error en respuesta de la API: {response.text}"
+                return
 
+            if response.status_code in (200, 201):
                 self.msg.color = (0, 1, 0, 1)
-                self.msg.text = "Tienda creada exitosamente en la API"
-                self.manager.current = "seleccion_rol"
+                self.msg.text = res_json.get("mensaje", "Tienda creada exitosamente")
+                # Limpiar inputs
+                self.nombre_input.text = ""
+                self.contra_input.text = ""
+                self.contra_confirm_input.text = ""
             else:
-                # Mostrar mensaje de error desde la API (si manda)
-                error_msg = response.json().get("error", "Error al crear tienda")
-                self.msg.text = error_msg
-        except Exception as e:
+                self.msg.color = (1, 0, 0, 1)
+                self.msg.text = res_json.get("error", "Error al crear tienda")
+        except requests.exceptions.RequestException as e:
+            self.msg.color = (1, 0, 0, 1)
             self.msg.text = f"Error de conexión: {str(e)}"
 
     def abrir_pantalla_abrir_tienda(self, instance):

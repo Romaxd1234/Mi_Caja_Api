@@ -1,18 +1,18 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException
 from typing import List, Optional
 from pydantic import BaseModel
 import json
 import os
+from datetime import datetime
 
 app = FastAPI()
 
-# Rutas de archivos para ejemplo: en producción quizá querrás base de datos
-TIENDA_JSON = "data/tiendas/abarrotes.json"
+# Archivos JSON
+TIENDAS_JSON = "data/tiendas.json"
 VENTAS_JSON = "data/ventas.json"
 INVENTARIO_JSON = "data/inventario.json"
 
-
-# MODELOS DE DATOS
+# -------------------- MODELOS --------------------
 class Producto(BaseModel):
     producto: str
     precio: float
@@ -39,10 +39,6 @@ class TiendaInfo(BaseModel):
     nombre: str
     patron_password: str
 
-class PatronInfo(BaseModel):
-    nombre: str
-    password: str
-
 class Prestamo(BaseModel):
     cantidad: str
     mensaje: str
@@ -61,62 +57,92 @@ class EmpleadosLista(BaseModel):
 
 class TiendaCompleta(BaseModel):
     tienda: TiendaInfo
-    patron: PatronInfo
     empleados: EmpleadosLista
     ultimo_acceso: dict
-    ultimo_acceso_empleado: dict
-    ultimo_empleado: dict
 
-
-# FUNCIONES AUXILIARES
+# -------------------- FUNCIONES AUXILIARES --------------------
 def leer_json(path):
     if not os.path.exists(path):
-        return None
+        # Crear carpeta si no existe
+        carpeta = os.path.dirname(path)
+        if carpeta and not os.path.exists(carpeta):
+            os.makedirs(carpeta, exist_ok=True)
+        # Crear archivo vacío
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump([], f)
+        return []
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return []
 
 def guardar_json(path, data):
+    carpeta = os.path.dirname(path)
+    if carpeta and not os.path.exists(carpeta):
+        os.makedirs(carpeta, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
+def buscar_tienda(nombre):
+    tiendas = leer_json(TIENDAS_JSON)
+    for tienda in tiendas:
+        if tienda["tienda"]["nombre"].lower() == nombre.lower():
+            return tienda
+    return None
+
+# -------------------- RUTAS --------------------
+@app.post("/tienda")
+def crear_tienda(tienda: TiendaInfo):
+    tiendas = leer_json(TIENDAS_JSON)
+    if buscar_tienda(tienda.nombre):
+        return {"error": "Ya existe una tienda con ese nombre"}
+
+    nueva_tienda = {
+        "tienda": {"nombre": tienda.nombre, "patron_password": tienda.patron_password},
+        "empleados": {"lista": []},
+        "ultimo_acceso": {}
+    }
+    tiendas.append(nueva_tienda)
+    guardar_json(TIENDAS_JSON, tiendas)
+    return {"mensaje": "Tienda creada correctamente"}
+
 @app.post("/tienda/login")
 def login_tienda(login_data: LoginData):
-    if not os.path.exists(TIENDA_JSON):
+    tienda = buscar_tienda(login_data.nombre)
+    if not tienda:
         raise HTTPException(status_code=404, detail="Tienda no encontrada")
-
-    with open(TIENDA_JSON, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    tienda = data.get("tienda", {})
-    nombre_guardado = tienda.get("nombre", "").lower()
-    password_guardado = tienda.get("patron_password", "")
-
-    if login_data.nombre.lower() == nombre_guardado and login_data.patron_password == password_guardado:
-        return {"mensaje": "Login exitoso"}
-    else:
+    if login_data.patron_password != tienda["tienda"]["patron_password"]:
         raise HTTPException(status_code=401, detail="Nombre o contraseña incorrectos")
 
+    ahora = datetime.now()
+    tienda["ultimo_acceso"] = {
+        "fecha": ahora.strftime("%Y-%m-%d"),
+        "hora": ahora.strftime("%H:%M:%S")
+    }
 
-# RUTAS DE API
+    tiendas = leer_json(TIENDAS_JSON)
+    for i, t in enumerate(tiendas):
+        if t["tienda"]["nombre"].lower() == login_data.nombre.lower():
+            tiendas[i] = tienda
+            break
+    guardar_json(TIENDAS_JSON, tiendas)
+    return {"mensaje": "Login exitoso", "ultimo_acceso": tienda["ultimo_acceso"]}
 
-@app.get("/tienda", response_model=TiendaCompleta)
-def obtener_tienda():
-    data = leer_json(TIENDA_JSON)
-    if not data:
-        raise HTTPException(status_code=404, detail="Tienda no encontrada")
-    return data
+@app.get("/tienda", response_model=List[TiendaCompleta])
+def listar_tiendas():
+    return leer_json(TIENDAS_JSON)
 
 @app.post("/ventas")
 def agregar_venta(venta: Venta):
-    ventas = leer_json(VENTAS_JSON) or []
+    ventas = leer_json(VENTAS_JSON)
     ventas.append(venta.dict())
     guardar_json(VENTAS_JSON, ventas)
     return {"mensaje": "Venta agregada correctamente"}
 
 @app.get("/ventas", response_model=List[Venta])
 def listar_ventas():
-    ventas = leer_json(VENTAS_JSON) or []
-    return ventas
+    return leer_json(VENTAS_JSON)
 
 @app.get("/inventario", response_model=List[InventarioItem])
 def obtener_inventario():
@@ -130,7 +156,6 @@ def agregar_producto_inventario(item: InventarioItem):
     data = leer_json(INVENTARIO_JSON) or {"inventario": []}
     inventario = data.get("inventario", [])
 
-    # Buscar si producto ya existe
     for prod in inventario:
         if prod["producto"] == item.producto:
             prod["piezas"] += item.piezas
@@ -138,33 +163,6 @@ def agregar_producto_inventario(item: InventarioItem):
             guardar_json(INVENTARIO_JSON, data)
             return {"mensaje": "Producto actualizado en inventario"}
 
-    # Si no existe, agregar
     inventario.append(item.dict())
     guardar_json(INVENTARIO_JSON, data)
     return {"mensaje": "Producto agregado al inventario"}
-
-@app.post("/tienda", status_code=status.HTTP_201_CREATED)
-def crear_tienda(tienda: TiendaInfo):
-    # Verifica que no exista tienda
-    if os.path.exists(TIENDA_JSON):
-        return {"error": "Ya existe una tienda creada"}
-
-    datos_tienda = {
-        "tienda": {
-            "nombre": tienda.nombre,
-            "patron_password": tienda.patron_password
-        },
-        "patron": {
-            "nombre": tienda.nombre,
-            "password": tienda.patron_password
-        },
-        "empleados": {
-            "lista": []
-        },
-        "ultimo_acceso": {},
-        "ultimo_acceso_empleado": {},
-        "ultimo_empleado": {}
-    }
-
-    guardar_json(TIENDA_JSON, datos_tienda)
-    return {"mensaje": "Tienda creada correctamente"}
