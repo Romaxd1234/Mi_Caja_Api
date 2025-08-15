@@ -6,14 +6,14 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.togglebutton import ToggleButton
 from kivy.uix.button import Button
 from kivy.uix.image import Image
-from kivy.storage.jsonstore import JsonStore
-import os
+import requests
 
 class PantallaPatronScreen(Screen):
+    API_BASE = "https://mi-caja-api.onrender.com"
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # Layout principal con fondo
         self.layout_principal = FloatLayout()
 
         # Imagen de fondo
@@ -24,23 +24,23 @@ class PantallaPatronScreen(Screen):
                       pos_hint={'x': 0, 'y': 0})
         self.layout_principal.add_widget(fondo)
 
-        # Layout con formulario centrado
+        # Layout del formulario
         self.layout = BoxLayout(orientation='vertical',
                                 padding=40,
                                 spacing=15,
                                 size_hint=(0.6, 0.8),
                                 pos_hint={'center_x': 0.5, 'center_y': 0.55})
 
-        # Saludo inicial
+        # Saludo
         self.saludo_label = Label(text="Hola, Patrón", font_size=24, size_hint_y=None, height=40)
         self.layout.add_widget(self.saludo_label)
 
-        # Campo para ingresar nombre
+        # Nombre
         self.layout.add_widget(Label(text="Nombre del patrón"))
         self.nombre_input = TextInput(multiline=False, size_hint_y=None, height=40)
         self.layout.add_widget(self.nombre_input)
 
-        # Crear contraseña
+        # Contraseña
         self.layout.add_widget(Label(text="Crear contraseña"))
         self.pass_layout = BoxLayout(size_hint_y=None, height=40)
         self.pass_input = TextInput(password=True, multiline=False)
@@ -60,7 +60,7 @@ class PantallaPatronScreen(Screen):
         self.pass_confirm_layout.add_widget(self.show_pass_confirm_btn)
         self.layout.add_widget(self.pass_confirm_layout)
 
-        # Mensaje de error/éxito
+        # Mensaje
         self.msg = Label(text="", color=(1, 0, 0, 1), size_hint_y=None, height=30)
         self.layout.add_widget(self.msg)
 
@@ -69,10 +69,9 @@ class PantallaPatronScreen(Screen):
         self.btn_registrar.bind(on_press=self.registrar_patron)
         self.layout.add_widget(self.btn_registrar)
 
-        # Agregar el formulario al layout principal
         self.layout_principal.add_widget(self.layout)
 
-        # Botón para volver (esquina inferior izquierda)
+        # Botón volver
         self.btn_volver = Button(text="Volver",
                                  size_hint=(0.2, 0.08),
                                  pos_hint={'x': 0.02, 'y': 0.02})
@@ -81,8 +80,9 @@ class PantallaPatronScreen(Screen):
 
         self.add_widget(self.layout_principal)
 
-        self.tienda_actual_path = None
+        # Estado
         self.nombre_patron = ""
+        self.tienda_actual = None  # Nombre de la tienda actual
 
     def toggle_password(self, instance):
         self.pass_input.password = not instance.state == 'down'
@@ -90,22 +90,34 @@ class PantallaPatronScreen(Screen):
     def toggle_password_confirm(self, instance):
         self.pass_confirm_input.password = not instance.state == 'down'
 
-    def set_datos_patron(self, nombre_patron, ruta_tienda):
-        """Para asignar el nombre del patrón y la ruta del json de la tienda."""
-        self.nombre_patron = nombre_patron
-        self.tienda_actual_path = ruta_tienda
-        self.saludo_label.text = f"Hola, {self.nombre_patron}"
-        self.nombre_input.text = nombre_patron  # Mostrar el nombre si ya se conoce
+    # ---------- API ----------
+    def set_tienda_actual(self, nombre_tienda):
+        """Setea la tienda actual y carga datos del patrón desde la API."""
+        self.tienda_actual = nombre_tienda
+        self.cargar_datos_patron()
 
-        # Verificar si ya hay una contraseña
-        if self.tienda_actual_path and os.path.exists(self.tienda_actual_path):
-            store = JsonStore(self.tienda_actual_path)
-            if store.exists("patron") and store.get("patron").get("password"):
-                self.msg.text = "Contraseña ya registrada. Usa la pantalla de login para entrar."
-                self.pass_input.disabled = True
-                self.pass_confirm_input.disabled = True
-                self.btn_registrar.disabled = True
-                self.nombre_input.disabled = True
+    def cargar_datos_patron(self):
+        """Trae nombre y contraseña del patrón desde la API."""
+        if not self.tienda_actual:
+            return
+        try:
+            url = f"{self.API_BASE}/tienda/{self.tienda_actual}/patron/password"
+            r = requests.get(url, timeout=10)
+            if r.status_code == 200:
+                data = r.json()
+                nombre = data.get("nombre", "")
+                password = data.get("password", "")
+                self.nombre_patron = nombre
+                self.saludo_label.text = f"Hola, {self.nombre_patron}" if nombre else "Hola, Patrón"
+                self.nombre_input.text = nombre
+                if password:
+                    self.msg.text = "Contraseña ya registrada. Usa la pantalla de login para entrar."
+                    self.pass_input.disabled = True
+                    self.pass_confirm_input.disabled = True
+                    self.btn_registrar.disabled = True
+                    self.nombre_input.disabled = True
+        except Exception as e:
+            print("Error al cargar datos del patrón:", e)
 
     def registrar_patron(self, instance):
         nombre = self.nombre_input.text.strip()
@@ -124,17 +136,26 @@ class PantallaPatronScreen(Screen):
             self.msg.text = "Las contraseñas no coinciden."
             return
 
-        if self.tienda_actual_path:
-            store = JsonStore(self.tienda_actual_path)
-            store.put("patron", nombre=nombre, password=contra)
-            self.msg.color = (0, 1, 0, 1)
-            self.msg.text = "Datos del patrón guardados correctamente."
-            self.pass_input.disabled = True
-            self.pass_confirm_input.disabled = True
-            self.nombre_input.disabled = True
-            self.btn_registrar.disabled = True
-        else:
-            self.msg.text = "Error: no se encontró la tienda actual."
+        if not self.tienda_actual:
+            self.msg.text = "Error: no hay tienda seleccionada."
+            return
+
+        # POST a la API
+        try:
+            url = f"{self.API_BASE}/tienda/{self.tienda_actual}/patron/password"
+            payload = {"nombre": nombre, "password": contra}
+            r = requests.post(url, json=payload, timeout=10)
+            if r.status_code == 200:
+                self.msg.color = (0, 1, 0, 1)
+                self.msg.text = "Datos del patrón guardados correctamente."
+                self.pass_input.disabled = True
+                self.pass_confirm_input.disabled = True
+                self.nombre_input.disabled = True
+                self.btn_registrar.disabled = True
+            else:
+                self.msg.text = f"Error al guardar: {r.status_code}"
+        except Exception as e:
+            self.msg.text = f"Error al conectar con API: {e}"
 
     def volver(self, instance):
         self.manager.current = "seleccion_rol"

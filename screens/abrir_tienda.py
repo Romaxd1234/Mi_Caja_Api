@@ -7,7 +7,12 @@ from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 from kivy.clock import Clock
 import requests
-from datetime import datetime
+import os
+import json
+from datetime import datetime, timedelta
+
+LOCAL_DIR = r"C:\MiCajaApp"
+SESSION_FILE = os.path.join(LOCAL_DIR, "tienda_sesion.json")
 
 class AbrirTiendaScreen(Screen):
     def __init__(self, **kwargs):
@@ -48,39 +53,50 @@ class AbrirTiendaScreen(Screen):
         layout_principal.add_widget(layout)
         self.add_widget(layout_principal)
 
+        # Crear carpeta local si no existe
+        if not os.path.exists(LOCAL_DIR):
+            os.makedirs(LOCAL_DIR)
+
+        # Intentar abrir sesión automáticamente si hay archivo local
+        Clock.schedule_once(self.checar_sesion_local, 0.5)
+
     def ventana(self, hora):
         return 1 if (hora >= 21 or hora < 7) else 0
 
-    def necesita_login(self, ultimo_acceso):
+    def necesita_login(self, ultima_hora):
+        """Revisar si han pasado más de 12 horas desde el último acceso"""
+        if not ultima_hora:
+            return True
         ahora = datetime.now()
-        fecha_hoy = ahora.strftime("%Y-%m-%d")
-        hora_actual = ahora.hour
+        ultimo = datetime.strptime(ultima_hora, "%Y-%m-%d %H:%M")
+        return ahora - ultimo > timedelta(hours=12)
 
-        if not ultimo_acceso:
-            return True
+    def checar_sesion_local(self, dt):
+        if os.path.exists(SESSION_FILE):
+            with open(SESSION_FILE, "r", encoding="utf-8") as f:
+                sesion = json.load(f)
+            nombre = sesion.get("nombre")
+            contra = sesion.get("password")
+            hora = sesion.get("hora")
 
-        fecha_acceso = ultimo_acceso.get("fecha")
-        hora_acceso = int(ultimo_acceso.get("hora").split(":")[0])
-
-        if fecha_acceso != fecha_hoy:
-            return True
-
-        return self.ventana(hora_acceso) != self.ventana(hora_actual)
-
-    def verificar_ultimo_acceso(self, dt):
-        nombre_tienda = self.nombre_input.text.strip()
-        if not nombre_tienda:
-            return
-
-        try:
-            url_api = f"https://mi-caja-api.onrender.com/tienda/{nombre_tienda}"
-            response = requests.get(url_api)
-            if response.status_code == 200:
-                tienda_data = response.json()
-                if not self.necesita_login(tienda_data.get("ultimo_acceso")):
-                    self.manager.current = "seleccion_rol"
-        except:
-            pass  # Si falla la API, dejar que el usuario inicie sesión normalmente
+            if nombre and contra and not self.necesita_login(hora):
+                # Verificar con API que la tienda sigue existiendo y la contraseña coincide
+                try:
+                    response = requests.get("https://mi-caja-api.onrender.com/tienda")
+                    if response.status_code == 200:
+                        tiendas = response.json()
+                        for t in tiendas:
+                            tienda_info = t.get("tienda", {})
+                            if tienda_info.get("nombre") == nombre and tienda_info.get("patron_password") == contra:
+                                # Abrir tienda directamente
+                                self.msg.color = (0, 1, 0, 1)
+                                self.msg.text = f"Tienda {nombre} abierta automáticamente"
+                                Clock.schedule_once(lambda dt: setattr(self.manager, 'current', 'seleccion_rol'), 0.5)
+                                return
+                except:
+                    pass
+            # Si falla la verificación o expiró el tiempo, borrar sesión local
+            os.remove(SESSION_FILE)
 
     def abrir_tienda(self, instance):
         nombre = self.nombre_input.text.strip()
@@ -91,25 +107,32 @@ class AbrirTiendaScreen(Screen):
             return
 
         try:
-            url_login = "https://mi-caja-api.onrender.com/tienda/login"
-            response = requests.post(url_login, json={"nombre": nombre, "patron_password": contra})
-
+            response = requests.get("https://mi-caja-api.onrender.com/tienda")
             if response.status_code == 200:
-                # Guardar ultimo_acceso en la API
-                ahora = datetime.now()
-                acceso = {"fecha": ahora.strftime("%Y-%m-%d"), "hora": ahora.strftime("%H:%M")}
-                url_actualizar = f"https://mi-caja-api.onrender.com/tienda/ultimo_acceso/{nombre}"
-                requests.post(url_actualizar, json=acceso)
+                tiendas = response.json()
+                tienda_valida = None
+                for t in tiendas:
+                    info = t.get("tienda", {})
+                    if info.get("nombre") == nombre and info.get("patron_password") == contra:
+                        tienda_valida = info
+                        break
 
-                self.msg.color = (0, 1, 0, 1)
-                self.msg.text = "Tienda abierta correctamente"
-                self.manager.current = "seleccion_rol"
+                if tienda_valida:
+                    # Guardar sesión local
+                    with open(SESSION_FILE, "w", encoding="utf-8") as f:
+                        json.dump({
+                            "nombre": nombre,
+                            "password": contra,
+                            "hora": datetime.now().strftime("%Y-%m-%d %H:%M")
+                        }, f)
+
+                    self.msg.color = (0, 1, 0, 1)
+                    self.msg.text = "Tienda abierta correctamente"
+                    Clock.schedule_once(lambda dt: setattr(self.manager, 'current', 'seleccion_rol'), 0.5)
+                else:
+                    self.msg.text = "Nombre o contraseña incorrectos"
             else:
-                try:
-                    error_msg = response.json().get("detail", "Nombre o contraseña incorrectos")
-                except:
-                    error_msg = "Nombre o contraseña incorrectos"
-                self.msg.text = error_msg
+                self.msg.text = "Error al conectar con la API"
         except Exception as e:
             self.msg.text = f"Error de conexión: {str(e)}"
 

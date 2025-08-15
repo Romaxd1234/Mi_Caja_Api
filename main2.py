@@ -63,11 +63,9 @@ class TiendaCompleta(BaseModel):
 # -------------------- FUNCIONES AUXILIARES --------------------
 def leer_json(path):
     if not os.path.exists(path):
-        # Crear carpeta si no existe
         carpeta = os.path.dirname(path)
         if carpeta and not os.path.exists(carpeta):
             os.makedirs(carpeta, exist_ok=True)
-        # Crear archivo vacío
         with open(path, "w", encoding="utf-8") as f:
             json.dump([], f)
         return []
@@ -133,6 +131,35 @@ def login_tienda(login_data: LoginData):
 def listar_tiendas():
     return leer_json(TIENDAS_JSON)
 
+@app.get("/tienda/{nombre_tienda}/patron/password")
+def obtener_patron(nombre_tienda: str):
+    tienda = buscar_tienda(nombre_tienda)
+    if not tienda:
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
+    
+    patron = tienda["tienda"]
+    return {"nombre": patron.get("nombre", ""), "password": patron.get("patron_password", "")}
+
+@app.post("/tienda/{nombre_tienda}/patron/password")
+def guardar_patron(nombre_tienda: str, data: LoginData):
+    tienda = buscar_tienda(nombre_tienda)
+    if not tienda:
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
+    
+    # Guardar nombre y contraseña del patrón
+    tienda["tienda"]["nombre"] = data.nombre
+    tienda["tienda"]["patron_password"] = data.patron_password
+    
+    # Guardar cambios en el JSON
+    tiendas = leer_json(TIENDAS_JSON)
+    for i, t in enumerate(tiendas):
+        if t["tienda"]["nombre"].lower() == nombre_tienda.lower():
+            tiendas[i] = tienda
+            break
+    guardar_json(TIENDAS_JSON, tiendas)
+    
+    return {"mensaje": "Datos del patrón guardados correctamente"}
+
 @app.post("/ventas")
 def agregar_venta(venta: Venta):
     ventas = leer_json(VENTAS_JSON)
@@ -164,5 +191,6 @@ def agregar_producto_inventario(item: InventarioItem):
             return {"mensaje": "Producto actualizado en inventario"}
 
     inventario.append(item.dict())
+    data["inventario"] = inventario
     guardar_json(INVENTARIO_JSON, data)
     return {"mensaje": "Producto agregado al inventario"}
