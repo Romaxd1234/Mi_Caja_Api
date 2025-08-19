@@ -1,0 +1,320 @@
+from fastapi import FastAPI, APIRouter, HTTPException
+from pydantic import BaseModel
+from typing import List
+from datetime import datetime
+
+app = FastAPI(title="API Tiendas Completa")
+
+class ProductoVenta(BaseModel):
+    producto: str
+    precio: float
+    cantidad: int = 1  # Si no envían cantidad, por defecto es 1
+
+class VentaRequest(BaseModel):
+    usuario: str
+    productos: List[ProductoVenta]
+    fuera_inventario: bool = True
+
+# ---------------------
+# Base de datos en memoria
+# ---------------------
+db = {
+    "tiendas": [],
+    "next_id": 1
+}
+
+# ---------------------
+# Función para crear estructura vacía de tienda
+# ---------------------
+def crear_estructura_tienda(nombre, password):
+    return {
+        "id": None,
+        "nombre": nombre,
+        "password": password,
+        "patron": None,
+        "empleados": [],
+        "inventario": [],
+        "ventas": [],
+        "cortes": {
+            "diarios": [],
+            "semanales": []
+        }
+    }
+
+# ---------------------
+# Router Tiendas
+# ---------------------
+tiendas_router = APIRouter(prefix="/tiendas", tags=["Tiendas"])
+
+@tiendas_router.get("/")
+def listar_tiendas():
+    return db["tiendas"]
+
+@tiendas_router.post("/")
+def crear_tienda(nombre: str, password: str):
+    nueva = crear_estructura_tienda(nombre, password)
+    nueva["id"] = db["next_id"]
+    db["next_id"] += 1
+    db["tiendas"].append(nueva)
+    return nueva
+
+@tiendas_router.get("/{tienda_id}")
+def obtener_tienda(tienda_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
+    return tienda
+
+@tiendas_router.delete("/{tienda_id}")
+def eliminar_tienda(tienda_id: int):
+    global db
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
+    db["tiendas"] = [t for t in db["tiendas"] if t["id"] != tienda_id]
+    return {"mensaje": "Tienda eliminada"}
+
+# ---------------------
+# Router Patrón
+# ---------------------
+patron_router = APIRouter(prefix="/tiendas/{tienda_id}/patron", tags=["Patrón"])
+
+@patron_router.get("/")
+def obtener_patron(tienda_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    return tienda["patron"]
+
+@patron_router.post("/")
+def crear_patron(tienda_id: int, nombre: str, password: str):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    tienda["patron"] = {"nombre": nombre, "password": password}
+    return tienda["patron"]
+
+@patron_router.delete("/")
+def eliminar_patron(tienda_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda or not tienda["patron"]:
+        raise HTTPException(status_code=404, detail="Patrón no encontrado")
+    tienda["patron"] = None
+    return {"mensaje": "Patrón eliminado"}
+
+# ---------------------
+# Router Empleados
+# ---------------------
+empleados_router = APIRouter(prefix="/tiendas/{tienda_id}/empleados", tags=["Empleados"])
+
+@empleados_router.get("/")
+def listar_empleados(tienda_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    return tienda["empleados"]
+
+@empleados_router.post("/")
+def crear_empleado(tienda_id: int, nombre: str, puesto: str, sueldo: float, password: str, nota: str = ""):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    nuevo = {
+        "id": len(tienda["empleados"])+1,
+        "nombre": nombre,
+        "puesto": puesto,
+        "sueldo": sueldo,
+        "password": password,
+        "nota": nota,
+        "prestamos": []
+    }
+    tienda["empleados"].append(nuevo)
+    return nuevo
+
+@empleados_router.put("/{empleado_id}")
+def editar_empleado(tienda_id: int, empleado_id: int, nombre: str = None, puesto: str = None, sueldo: float = None, password: str = None, nota: str = None):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    empleado = next((e for e in tienda["empleados"] if e["id"] == empleado_id), None)
+    if not empleado:
+        raise HTTPException(status_code=404)
+    if nombre: empleado["nombre"] = nombre
+    if puesto: empleado["puesto"] = puesto
+    if sueldo: empleado["sueldo"] = sueldo
+    if password: empleado["password"] = password
+    if nota: empleado["nota"] = nota
+    return empleado
+
+@empleados_router.delete("/{empleado_id}")
+def eliminar_empleado(tienda_id: int, empleado_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    tienda["empleados"] = [e for e in tienda["empleados"] if e["id"] != empleado_id]
+    return {"mensaje": "Empleado eliminado"}
+
+# ---------------------
+# Router Inventario
+# ---------------------
+inventario_router = APIRouter(prefix="/tiendas/{tienda_id}/inventario", tags=["Inventario"])
+
+@inventario_router.get("/")
+def listar_inventario(tienda_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    return tienda["inventario"]
+
+@inventario_router.post("/")
+def agregar_producto(tienda_id: int, producto: str, precio: float, piezas: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    nuevo = {
+        "id": len(tienda["inventario"])+1,
+        "producto": producto,
+        "precio": precio,
+        "piezas": piezas
+    }
+    tienda["inventario"].append(nuevo)
+    return nuevo
+
+@inventario_router.put("/{producto_id}")
+def editar_producto(tienda_id: int, producto_id: int, producto: str = None, precio: float = None, piezas: int = None):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    prod = next((p for p in tienda["inventario"] if p["id"] == producto_id), None)
+    if not prod:
+        raise HTTPException(status_code=404)
+    if producto: prod["producto"] = producto
+    if precio: prod["precio"] = precio
+    if piezas: prod["piezas"] = piezas
+    return prod
+
+@inventario_router.delete("/{producto_id}")
+def eliminar_producto(tienda_id: int, producto_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    tienda["inventario"] = [p for p in tienda["inventario"] if p["id"] != producto_id]
+    return {"mensaje": "Producto eliminado"}
+
+# ---------------------
+# Router Ventas
+# ---------------------
+ventas_router = APIRouter(prefix="/tiendas/{tienda_id}/ventas", tags=["Ventas"])
+
+@ventas_router.get("/")
+def listar_ventas(tienda_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    return tienda["ventas"]
+
+@ventas_router.post("/")
+def agregar_venta(tienda_id: int, venta: VentaRequest):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    
+    total = sum(p.precio * p.cantidad for p in venta.productos)
+    nueva_venta = {
+        "id": len(tienda["ventas"]) + 1,
+        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "usuario": venta.usuario,
+        "productos": [p.dict() for p in venta.productos],
+        "total": total,
+        "fuera_inventario": venta.fuera_inventario
+    }
+    tienda["ventas"].append(nueva_venta)
+    return nueva_venta
+
+@ventas_router.delete("/{venta_id}")
+def eliminar_venta(tienda_id: int, venta_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    tienda["ventas"] = [v for v in tienda["ventas"] if v["id"] != venta_id]
+    return {"mensaje": "Venta eliminada"}
+
+# ---------------------
+# Router Cortes
+# ---------------------
+cortes_router = APIRouter(prefix="/tiendas/{tienda_id}/cortes", tags=["Cortes"])
+
+@cortes_router.get("/diarios")
+def listar_cortes_diarios(tienda_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    return tienda["cortes"]["diarios"]
+
+@cortes_router.post("/diarios")
+def crear_corte_diario(tienda_id: int, usuario_que_corto: str):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    corte = {
+        "id": len(tienda["cortes"]["diarios"])+1,
+        "fecha": datetime.now().strftime("%Y-%m-%d"),
+        "hora": datetime.now().strftime("%H:%M:%S"),
+        "usuario_que_corto": usuario_que_corto,
+        "ventas": tienda["ventas"].copy(),
+        "total": sum(v["total"] for v in tienda["ventas"])
+    }
+    tienda["cortes"]["diarios"].append(corte)
+    tienda["ventas"] = []  # Reinicia ventas después del corte
+    return corte
+
+@cortes_router.delete("/diarios/{corte_id}")
+def eliminar_corte_diario(tienda_id: int, corte_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    tienda["cortes"]["diarios"] = [c for c in tienda["cortes"]["diarios"] if c["id"] != corte_id]
+    return {"mensaje": "Corte diario eliminado"}
+
+@cortes_router.get("/semanales")
+def listar_cortes_semanales(tienda_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    return tienda["cortes"]["semanales"]
+
+@cortes_router.post("/semanales")
+def crear_corte_semanal(tienda_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    corte = {
+        "id": len(tienda["cortes"]["semanales"])+1,
+        "fecha": datetime.now().strftime("%Y-%m-%d"),
+        "cortes_diarios": tienda["cortes"]["diarios"].copy()
+    }
+    tienda["cortes"]["semanales"].append(corte)
+    tienda["cortes"]["diarios"] = []  # Reinicia cortes diarios
+    return corte
+
+@cortes_router.delete("/semanales/{corte_id}")
+def eliminar_corte_semanal(tienda_id: int, corte_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    tienda["cortes"]["semanales"] = [c for c in tienda["cortes"]["semanales"] if c["id"] != corte_id]
+    return {"mensaje": "Corte semanal eliminado"}
+
+# ---------------------
+# Incluir routers en app
+# ---------------------
+app.include_router(tiendas_router)
+app.include_router(patron_router)
+app.include_router(empleados_router)
+app.include_router(inventario_router)
+app.include_router(ventas_router)
+app.include_router(cortes_router)
+
+@app.get("/")
+def raiz():
+    return {"mensaje": "API Tiendas completa, lista para usar"}

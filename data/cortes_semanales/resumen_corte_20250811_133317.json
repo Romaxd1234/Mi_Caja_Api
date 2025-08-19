@@ -1,0 +1,11 @@
+{
+    "fecha_cierre": "20250811_133317",
+    "num_cortes": 2,
+    "total_ventas_semana": 675904.0,
+    "total_sueldos": 150.0,
+    "total_prestamos_pagados": 200.0,
+    "total_ganancias": 675954.0,
+    "pagos_prestamos": {
+        "roma": 200.0
+    }
+}

@@ -1,0 +1,20 @@
+{
+    "fecha": "2025-08-11",
+    "hora": "13:48:28",
+    "total": "150.00",
+    "usuario_que_corto": "Roma",
+    "ventas": [
+        {
+            "fecha": "2025-08-11 13:48:13",
+            "usuario": "Roma",
+            "productos": [
+                {
+                    "producto": "jbvisj",
+                    "precio": 150.0
+                }
+            ],
+            "total": 150.0,
+            "fuera_inventario": true
+        }
+    ]
+}

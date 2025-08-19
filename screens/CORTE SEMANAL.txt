@@ -1,0 +1,244 @@
+from kivy.uix.screenmanager import Screen
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.image import Image
+from kivy.uix.button import Button
+from kivy.uix.label import Label
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.popup import Popup
+from kivy.graphics.texture import Texture
+from kivy.uix.widget import Widget
+import os
+import json
+from datetime import datetime
+import calendar
+
+class CorteSemanalScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.carpeta_cortes = "data/cortes"
+        self.carpeta_tiendas = "data/tiendas"
+        self.prestamos_pendientes = {}
+        self.pagos_prestamos_temp = {}
+
+        self.fondo = Image(source="assets/fondo.png", allow_stretch=True, keep_ratio=False)
+        self.add_widget(self.fondo)
+
+        self.main_layout = BoxLayout(orientation='horizontal', padding=10, spacing=10)
+        self.add_widget(self.main_layout)
+
+        self.layout_izquierdo = BoxLayout(orientation='vertical', size_hint_x=0.4, spacing=10)
+        self.layout_derecho = BoxLayout(orientation='vertical', size_hint_x=0.6, spacing=10)
+
+        self.main_layout.add_widget(self.layout_izquierdo)
+        self.main_layout.add_widget(self.layout_derecho)
+
+        # Por defecto, mostramos vista cortes (no prestamos)
+        self.mostrar_vista_cortes()
+
+    def mostrar_vista_cortes(self):
+        self.layout_izquierdo.clear_widgets()
+        self.layout_derecho.clear_widgets()
+
+        # Botones en la izquierda abajo
+        btn_prestamos = Button(text="Préstamos", size_hint_y=None, height=50)
+        btn_volver = Button(text="Volver", size_hint_y=None, height=50)
+        btn_prestamos.bind(on_release=self.mostrar_vista_prestamos)
+        btn_volver.bind(on_release=self.volver_pantalla_principal)
+
+        self.layout_izquierdo.add_widget(Widget())  # Relleno para empujar botones abajo
+        self.layout_izquierdo.add_widget(btn_prestamos)
+        self.layout_izquierdo.add_widget(btn_volver)
+
+        # Lado derecho: Total y botón cerrar corte
+        self.total_label = Label(text="Total Semana: $0.00", size_hint_y=None, height=40)
+        btn_cerrar = Button(text="Cerrar Corte", size_hint_y=None, height=50)
+        btn_cerrar.bind(on_release=self.cerrar_corte)
+
+        self.layout_derecho.add_widget(Widget())  # Espacio para arriba
+        self.layout_derecho.add_widget(self.total_label)
+        self.layout_derecho.add_widget(btn_cerrar)
+
+        # Aquí carga gráfica y tabla con info
+        self.cargar_grafica_y_tabla()
+
+    def cargar_grafica_y_tabla(self):
+        # Carga jsons de cortes para extraer totales y fechas
+        archivos = [f for f in os.listdir(self.carpeta_cortes) if f.endswith('.json')]
+        archivos.sort()
+
+        datos_grafica = []
+        tabla_layout = BoxLayout(orientation='vertical', size_hint_y=None)
+        tabla_layout.bind(minimum_height=tabla_layout.setter('height'))
+
+        total_semana = 0.0
+
+        # Scroll para la tabla
+        scroll = ScrollView(size_hint=(1, 1))
+        self.layout_derecho.add_widget(scroll)
+        scroll.add_widget(tabla_layout)
+
+        # Encabezado tabla
+        encabezado = BoxLayout(size_hint_y=None, height=30)
+        encabezado.add_widget(Label(text="Día", bold=True))
+        encabezado.add_widget(Label(text="Fecha", bold=True))
+        encabezado.add_widget(Label(text="Empleado", bold=True))
+        encabezado.add_widget(Label(text="Cantidad", bold=True))
+        tabla_layout.add_widget(encabezado)
+
+        for archivo in archivos:
+            ruta = os.path.join(self.carpeta_cortes, archivo)
+            with open(ruta, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                fecha_str = data.get("fecha", "")
+                total = float(data.get("total", "0"))
+                usuario = data.get("usuario_que_corto", "Desconocido")
+
+                # Obtener día de la semana para mostrar (lunes, martes...)
+                try:
+                    fecha_dt = datetime.strptime(fecha_str, "%Y-%m-%d")
+                    dia_semana = calendar.day_name[fecha_dt.weekday()]
+                except:
+                    dia_semana = "Desconocido"
+
+                total_semana += total
+
+                datos_grafica.append((fecha_str, total))
+
+                fila = BoxLayout(size_hint_y=None, height=30)
+                fila.add_widget(Label(text=dia_semana))
+                fila.add_widget(Label(text=fecha_str))
+                fila.add_widget(Label(text=usuario))
+                fila.add_widget(Label(text=f"${total:,.2f}"))
+                tabla_layout.add_widget(fila)
+
+        self.total_label.text = f"Total Semana: ${total_semana:,.2f}"
+
+        # Aquí puedes agregar la gráfica con matplotlib o kivy.garden.graph (depende de lo que uses)
+        # Por simplicidad aquí dejamos el código para que la grafica la implementes o te ayudo luego.
+
+    def mostrar_vista_prestamos(self, instance=None):
+        self.layout_izquierdo.clear_widgets()
+        self.layout_derecho.clear_widgets()
+
+        # Botón volver para la vista prestamos
+        btn_volver = Button(text="Volver", size_hint_y=None, height=50)
+        btn_volver.bind(on_release=self.mostrar_vista_cortes)
+        self.layout_izquierdo.add_widget(Widget())
+        self.layout_izquierdo.add_widget(btn_volver)
+
+        # Cargar datos de préstamos de empleados
+        tienda_json_path = self.obtener_ruta_tienda()
+        if not tienda_json_path or not os.path.exists(tienda_json_path):
+            self.layout_derecho.add_widget(Label(text="No se encontró el archivo de tienda"))
+            return
+
+        with open(tienda_json_path, 'r', encoding='utf-8') as f:
+            data_tienda = json.load(f)
+
+        empleados = data_tienda.get("empleados", {}).get("lista", [])
+
+        prestamos_layout = BoxLayout(orientation='vertical', size_hint_y=None)
+        prestamos_layout.bind(minimum_height=prestamos_layout.setter('height'))
+
+        scroll = ScrollView()
+        scroll.add_widget(prestamos_layout)
+        self.layout_derecho.add_widget(scroll)
+
+        self.pagos_prestamos_temp = {}
+
+        for emp in empleados:
+            prestamo = emp.get("prestamo", {})
+            cantidad = float(prestamo.get("cantidad", "0"))
+            pendiente = prestamo.get("pendiente", False)
+            if cantidad > 0 and pendiente:
+                fila = BoxLayout(size_hint_y=None, height=40, padding=5, spacing=5)
+
+                lbl_nombre = Label(text=emp.get("nombre", "Desconocido"))
+                lbl_prestamo = Label(text=f"${cantidad:,.2f}")
+
+                from kivy.uix.textinput import TextInput
+                input_pago = TextInput(text="", multiline=False, input_filter='float', size_hint_x=0.3)
+                btn_pagar = Button(text="Pagar", size_hint_x=0.2)
+
+                fila.add_widget(lbl_nombre)
+                fila.add_widget(lbl_prestamo)
+                fila.add_widget(input_pago)
+                fila.add_widget(btn_pagar)
+
+                prestamos_layout.add_widget(fila)
+
+                def pagar_prestamo(instance, empleado=emp, input_pago=input_pago):
+                    pago = input_pago.text.strip()
+                    if pago == "":
+                        return
+                    pago_val = float(pago)
+                    prestamo_actual = float(empleado["prestamo"]["cantidad"])
+                    nuevo_prestamo = max(prestamo_actual - pago_val, 0)
+                    empleado["prestamo"]["cantidad"] = str(nuevo_prestamo)
+                    if nuevo_prestamo == 0:
+                        empleado["prestamo"]["pendiente"] = False
+                    # Guardar el pago temporal (para cerrar corte)
+                    self.pagos_prestamos_temp[empleado["nombre"]] = pago_val
+                    input_pago.text = ""
+                    btn_pagar.disabled = True
+                    self.guardar_prestamos(data_tienda)
+                    self.mostrar_vista_prestamos()
+
+                btn_pagar.bind(on_release=pagar_prestamo)
+
+        # Total (actualiza de forma similar que en cortes, puedes implementarlo)
+
+    def guardar_prestamos(self, data_tienda):
+        # Guarda el json actualizado de la tienda con prestamos pagados parcialmente
+        ruta = self.obtener_ruta_tienda()
+        if ruta:
+            with open(ruta, 'w', encoding='utf-8') as f:
+                json.dump(data_tienda, f, indent=4, ensure_ascii=False)
+
+    def obtener_ruta_tienda(self):
+        # Aquí debes devolver la ruta al archivo json de la tienda
+        # Según lo que dijiste podría estar en data/config.json apuntando a la tienda actual
+        import os
+        from kivy.storage.jsonstore import JsonStore
+
+        config_path = "data/config.json"
+        if not os.path.exists(config_path):
+            return None
+        store_config = JsonStore(config_path)
+        if not store_config.exists("actual"):
+            return None
+        ruta_tienda = store_config.get("actual")["archivo"]
+        if not os.path.exists(ruta_tienda):
+            return None
+        return ruta_tienda
+
+    def volver_pantalla_principal(self, instance=None):
+        self.manager.current = 'pantalla_principal'
+
+    def cerrar_corte(self, instance):
+        # Aquí arma el popup con el resumen y lógica de confirmación para cortar la semana
+        # Puedes iterar los json de cortes para sumar y restar préstamos y sueldos
+        # Al confirmar guardar todo y mover archivos.
+        popup_content = BoxLayout(orientation='vertical', spacing=10, padding=10)
+
+        popup_content.add_widget(Label(text="Aquí irá el resumen del corte semanal (implementar)"))
+
+        btn_confirmar = Button(text="Confirmar")
+        btn_volver = Button(text="Volver")
+
+        popup_content.add_widget(btn_confirmar)
+        popup_content.add_widget(btn_volver)
+
+        popup = Popup(title="Confirmar Corte Semanal",
+                      content=popup_content,
+                      size_hint=(0.8, 0.8),
+                      auto_dismiss=False)
+
+        btn_volver.bind(on_release=popup.dismiss)
+
+        def confirmar(instance):
+            # Implementar guardar resumen, mover jsons, actualizar préstamos, reiniciar pantalla
+            popup.dismiss()
+
+        btn_confirmar.bind(on_release=confirmar)
+        popup.open()
