@@ -55,7 +55,7 @@ wsproto==1.2.0
 zstandard==0.23.0
 
 # PyInstaller compatible con Python 3.10
-pyinstaller==5.13.0
+pyinstaller==6.15.0
 pyinstaller-hooks-contrib==2025.8
 
 # Librerías GUI / Kivy SOLO para uso local (comentadas para Render)
