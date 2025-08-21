@@ -49,10 +49,19 @@ def crear_estructura_tienda(nombre: str, password: str):
     }
 
 # ---------------------
-# Router Tiendas
+# Routers
 # ---------------------
 tiendas_router = APIRouter(prefix="/tiendas", tags=["Tiendas"])
+patron_router = APIRouter(prefix="/tiendas/{tienda_id}/patron", tags=["Patrón"])
+empleados_router = APIRouter(prefix="/tiendas/{tienda_id}/empleados", tags=["Empleados"])
+inventario_router = APIRouter(prefix="/tiendas/{tienda_id}/inventario", tags=["Inventario"])
+ventas_router = APIRouter(prefix="/tiendas/{tienda_id}/ventas", tags=["Ventas"])
+cortes_router = APIRouter(prefix="/tiendas/{tienda_id}/cortes", tags=["Cortes"])
+prestamos_router = APIRouter(prefix="/tiendas/{tienda_id}/empleados/{empleado_id}/prestamos", tags=["Préstamos"])
 
+# ---------------------
+# Tiendas
+# ---------------------
 @tiendas_router.get("/")
 def listar_tiendas():
     return db["tiendas"]
@@ -81,10 +90,8 @@ def eliminar_tienda(tienda_id: int):
     return {"mensaje": "Tienda eliminada"}
 
 # ---------------------
-# Router Patrón
+# Patrón
 # ---------------------
-patron_router = APIRouter(prefix="/tiendas/{tienda_id}/patron", tags=["Patrón"])
-
 @patron_router.get("/")
 def obtener_patron(tienda_id: int):
     tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
@@ -109,10 +116,8 @@ def eliminar_patron(tienda_id: int):
     return {"mensaje": "Patrón eliminado"}
 
 # ---------------------
-# Router Empleados
+# Empleados
 # ---------------------
-empleados_router = APIRouter(prefix="/tiendas/{tienda_id}/empleados", tags=["Empleados"])
-
 @empleados_router.get("/")
 def listar_empleados(tienda_id: int):
     tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
@@ -161,10 +166,8 @@ def eliminar_empleado(tienda_id: int, empleado_id: int):
     return {"mensaje": "Empleado eliminado"}
 
 # ---------------------
-# Router Inventario
+# Inventario
 # ---------------------
-inventario_router = APIRouter(prefix="/tiendas/{tienda_id}/inventario", tags=["Inventario"])
-
 @inventario_router.get("/")
 def listar_inventario(tienda_id: int):
     tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
@@ -208,10 +211,8 @@ def eliminar_producto(tienda_id: int, producto_id: int):
     return {"mensaje": "Producto eliminado"}
 
 # ---------------------
-# Router Ventas
+# Ventas
 # ---------------------
-ventas_router = APIRouter(prefix="/tiendas/{tienda_id}/ventas", tags=["Ventas"])
-
 @ventas_router.get("/")
 def listar_ventas(tienda_id: int):
     tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
@@ -230,7 +231,7 @@ def agregar_venta(tienda_id: int, venta: VentaRequest):
         "id": len(tienda["ventas"]) + 1,
         "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "usuario": venta.usuario,
-        "productos": [p.dict() for p in venta.productos],
+        "productos": [p.model_dump() for p in venta.productos],
         "total": total,
         "fuera_inventario": venta.fuera_inventario
     }
@@ -246,10 +247,8 @@ def eliminar_venta(tienda_id: int, venta_id: int):
     return {"mensaje": "Venta eliminada"}
 
 # ---------------------
-# Router Cortes
+# Cortes
 # ---------------------
-cortes_router = APIRouter(prefix="/tiendas/{tienda_id}/cortes", tags=["Cortes"])
-
 @cortes_router.get("/diarios")
 def listar_cortes_diarios(tienda_id: int):
     tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
@@ -271,7 +270,7 @@ def crear_corte_diario(tienda_id: int, usuario_que_corto: str):
         "total": sum(v["total"] for v in tienda["ventas"])
     }
     tienda["cortes"]["diarios"].append(corte)
-    tienda["ventas"] = []  # Reinicia ventas después del corte
+    tienda["ventas"] = []
     return corte
 
 @cortes_router.delete("/diarios/{corte_id}")
@@ -300,7 +299,7 @@ def crear_corte_semanal(tienda_id: int):
         "cortes_diarios": tienda["cortes"]["diarios"].copy()
     }
     tienda["cortes"]["semanales"].append(corte)
-    tienda["cortes"]["diarios"] = []  # Reinicia cortes diarios
+    tienda["cortes"]["diarios"] = []
     return corte
 
 @cortes_router.delete("/semanales/{corte_id}")
@@ -312,10 +311,8 @@ def eliminar_corte_semanal(tienda_id: int, corte_id: int):
     return {"mensaje": "Corte semanal eliminado"}
 
 # ---------------------
-# Router Préstamos Empleados
+# Préstamos Empleados
 # ---------------------
-prestamos_router = APIRouter(prefix="/tiendas/{tienda_id}/empleados/{empleado_id}/prestamos", tags=["Préstamos"])
-
 @prestamos_router.get("/")
 def listar_prestamos(tienda_id: int, empleado_id: int):
     tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
