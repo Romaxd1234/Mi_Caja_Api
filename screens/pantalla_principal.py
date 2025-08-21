@@ -141,6 +141,18 @@ class VentanaPrincipal(Screen):
         ahora = datetime.now()
         self.label_hora.text = ahora.strftime("%H:%M:%S")
 
+    def mostrar_popup(self, titulo, mensaje):
+        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        contenido.add_widget(Label(text=mensaje))
+        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=40)
+        contenido.add_widget(btn_cerrar)
+
+        popup = Popup(title=titulo, content=contenido,
+                    size_hint=(0.6, 0.4),
+                    auto_dismiss=False)
+        btn_cerrar.bind(on_release=popup.dismiss)
+        popup.open()
+
     def abrir_venta(self, instance):
         contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
 
@@ -197,78 +209,95 @@ class VentanaPrincipal(Screen):
             self.input_precio.text = ''
 
         def registrar_venta(instance):
+            nonlocal popup
             if not self.ventas_temporales:
+                self.mostrar_popup("Error", "No hay productos para registrar.")
                 return
+
             import requests
-            url = f"https://mi-caja-api.onrender.com/tiendas/{self.tienda_id}/ventas/"
-            payload = {
+
+            # Query parameters obligatorios
+            params = {
                 "usuario": self.nombre_usuario,
-                "productos": [{"producto": p, "precio": pr, "cantidad": 1} for p, pr in self.ventas_temporales],
                 "fuera_inventario": True
             }
-            try:
-                respuesta = requests.post(url, json=payload)
-                respuesta.raise_for_status()
-                popup.dismiss()
-                self.ventas_temporales = []
-                self.mostrar_popup_confirmacion()
-            except Exception as e:
-                self.mostrar_popup("Error", f"No se pudo registrar la venta: {e}")
 
+            # Body como lista de productos
+            payload = [{"producto": p, "precio": pr, "cantidad": 1} for p, pr in self.ventas_temporales]
+
+            try:
+                respuesta = requests.post(
+                    f"https://mi-caja-api.onrender.com/tiendas/{self.tienda_id}/ventas/",
+                    params=params,
+                    json=payload
+                )
+
+                if respuesta.status_code in (200, 201):
+                    popup.dismiss()
+                    self.ventas_temporales = []
+                    self.mostrar_popup_confirmacion()
+
+                elif respuesta.status_code == 422:
+                    # Muestra el detalle de errores de validación que devuelve FastAPI
+                    errores = respuesta.json().get("detail", [])
+                    mensaje = "\n".join([f"{e.get('loc', '')}: {e.get('msg', '')}" for e in errores])
+                    self.mostrar_popup("Error de Validación", mensaje or "Datos no válidos")
+
+                else:
+                    self.mostrar_popup("Error", f"Error desconocido: {respuesta.status_code}")
+
+            except requests.exceptions.RequestException as e:
+                self.mostrar_popup("Error", f"No se pudo conectar al servidor:\n{e}")
+
+        # Asignar las funciones a los botones
         btn_agregar_producto.bind(on_release=agregar_producto)
         btn_registrar.bind(on_release=registrar_venta)
 
+        # Abrir el popup
         popup.open()
 
-
-    def mostrar_popup_confirmacion(self):
-        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        contenido.add_widget(Label(text="Venta registrada correctamente."))
-
-        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=40)
-        contenido.add_widget(btn_cerrar)
-
-        popup_confirmacion = Popup(title='Confirmación', content=contenido,
-                                  size_hint=(0.5, 0.4),
-                                  auto_dismiss=False)
-
-        btn_cerrar.bind(on_release=popup_confirmacion.dismiss)
-        popup_confirmacion.open()
-
     def guardar_venta(self, producto, precio, fuera_inventario=False):
+        import os
+        from datetime import datetime
+        from kivy.storage.jsonstore import JsonStore
+
         config_path = "data/config.json"
         if not os.path.exists(config_path):
             print("No existe config.json")
             return
-        
+
         store_config = JsonStore(config_path)
         if not store_config.exists("actual"):
             print("No hay tienda actual guardada")
             return
-        
+
         ruta_tienda = store_config.get("actual")["archivo"]
         if not os.path.exists(ruta_tienda):
             print("Archivo de tienda no encontrado")
             return
-        
+
         store = JsonStore(ruta_tienda)
 
         ventas = []
         if store.exists("ventas"):
             ventas = store.get("ventas").get("lista", [])
 
+        # 🔹 Hora exacta del sistema
+        fecha_local = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
         nueva_venta = {
             "producto": producto,
             "usuario": self.nombre_usuario,
             "precio": precio,
-            "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "fecha": fecha_local,
             "fuera_inventario": fuera_inventario
-
         }
+
         ventas.append(nueva_venta)
         store.put("ventas", lista=ventas)
 
-        print(f"Venta registrada: {producto} - ${precio}")
+        print(f"Venta registrada: {producto} - ${precio} - Hora: {fecha_local}")
+
 
     def ir_a_inventario(self, instance):
         self.manager.current = 'inventario'
@@ -279,11 +308,27 @@ class VentanaPrincipal(Screen):
     def realizar_corte(self, instance):
         print("Ir a Corte")
 
+    def ir_a_corte_diario(self, instance):
+        corte_screen = self.manager.get_screen("corte_diario")
+        corte_screen.set_tienda_id(self.tienda_id, self.nombre_usuario)
+        self.manager.current = "corte_diario"
+
     def ir_a_registro_cortes(self, instance):
-        self.manager.current = 'registro_cortes'
+        if not hasattr(self, "tienda_actual") or not self.tienda_actual:
+            # Avisar al usuario
+            print("No se ha seleccionado ninguna tienda")
+            return
+
+        registro_screen = self.manager.get_screen("registro_cortes")
+        registro_screen.set_tienda_id(self.tienda_actual["id"])
+        self.manager.current = "registro_cortes"
+        
 
     def abrir_venta_con_inventario(self, instance):
         print("Ir a pantalla de Venta con Inventario")
+        venta_inv_screen = self.manager.get_screen('venta_inventario')
+        venta_inv_screen.set_tienda_id(self.tienda_id)
+        venta_inv_screen.set_usuario(self.nombre_usuario)
         self.manager.current = 'venta_inventario'
 
     def set_tienda_id(self, tienda_id):
@@ -330,29 +375,23 @@ class VentanaPrincipal(Screen):
         layout.add_widget(btn_semanal)
         layout.add_widget(btn_cancelar)
 
-        popup = Popup(title="Seleccionar corte", content=layout, size_hint=(None, None), size=(300, 300))
+        popup = Popup(title="Seleccionar corte", content=layout, size_hint=(None, None), size=(300, 300), auto_dismiss=False)
 
-        def corte_diario(instance):
+        def corte_diario(instance_btn):
             popup.dismiss()
-            print("Realizar corte diario")
-
             corte_screen = self.manager.get_screen("corte_diario")
-            corte_screen.nombre_usuario = self.nombre_usuario  # Asignas el usuario actual aquí
-
+            corte_screen.set_tienda_id(self.tienda_id, self.nombre_usuario)
             self.manager.current = "corte_diario"
 
-
-        def corte_semanal(instance):
+        def corte_semanal(instance_btn):
             popup.dismiss()
-            # Aquí puedes llamar a una función o cambiar de pantalla
-            self.manager.current = 'corte_semanal'
+            self.manager.current = "corte_semanal"
 
         btn_diario.bind(on_release=corte_diario)
         btn_semanal.bind(on_release=corte_semanal)
         btn_cancelar.bind(on_release=popup.dismiss)
 
         popup.open()
-
 
     def revisar_prestamo_pendiente(self):
         """
@@ -383,6 +422,19 @@ class VentanaPrincipal(Screen):
                 if prestamo.get("pendiente", False):
                     self.mostrar_popup_prestamo(prestamo.get("mensaje", ""))
                 break
+
+    def mostrar_popup_confirmacion(self):
+        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        contenido.add_widget(Label(text="Venta registrada correctamente."))
+
+        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=40)
+        contenido.add_widget(btn_cerrar)
+
+        popup = Popup(title='Confirmación', content=contenido,
+                    size_hint=(0.5, 0.4),
+                    auto_dismiss=False)
+        btn_cerrar.bind(on_release=popup.dismiss)
+        popup.open()
 
     # --- NUEVO MÉTODO para mostrar popup persistente ---
     def mostrar_popup_prestamo(self, mensaje):

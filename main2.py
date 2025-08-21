@@ -318,3 +318,66 @@ app.include_router(cortes_router)
 @app.get("/")
 def raiz():
     return {"mensaje": "API Tiendas completa, lista para usar"}
+
+# ---------------------
+# Router Préstamos Empleados
+# ---------------------
+prestamos_router = APIRouter(prefix="/tiendas/{tienda_id}/empleados/{empleado_id}/prestamos", tags=["Préstamos"])
+
+class PrestamoRequest(BaseModel):
+    cantidad: float
+    descripcion: str = ""
+
+@prestamos_router.get("/")
+def listar_prestamos(tienda_id: int, empleado_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    empleado = next((e for e in tienda["empleados"] if e["id"] == empleado_id), None)
+    if not empleado:
+        raise HTTPException(status_code=404)
+    return empleado.get("prestamos", [])
+
+@prestamos_router.post("/")
+def crear_prestamo(tienda_id: int, empleado_id: int, prestamo: PrestamoRequest):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    empleado = next((e for e in tienda["empleados"] if e["id"] == empleado_id), None)
+    if not empleado:
+        raise HTTPException(status_code=404)
+    nuevo = {
+        "id": len(empleado.get("prestamos", [])) + 1,
+        "cantidad": prestamo.cantidad,
+        "descripcion": prestamo.descripcion,
+        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    empleado.setdefault("prestamos", []).append(nuevo)
+    return nuevo
+
+@prestamos_router.put("/{prestamo_id}")
+def editar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int, prestamo: PrestamoRequest):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    empleado = next((e for e in tienda["empleados"] if e["id"] == empleado_id), None)
+    if not empleado:
+        raise HTTPException(status_code=404)
+    prestamo_existente = next((p for p in empleado.get("prestamos", []) if p["id"] == prestamo_id), None)
+    if not prestamo_existente:
+        raise HTTPException(status_code=404)
+    prestamo_existente["cantidad"] = prestamo.cantidad
+    prestamo_existente["descripcion"] = prestamo.descripcion
+    return prestamo_existente
+
+@prestamos_router.delete("/{prestamo_id}")
+def eliminar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int):
+    tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
+    if not tienda:
+        raise HTTPException(status_code=404)
+    empleado = next((e for e in tienda["empleados"] if e["id"] == empleado_id), None)
+    if not empleado:
+        raise HTTPException(status_code=404)
+    empleado["prestamos"] = [p for p in empleado.get("prestamos", []) if p["id"] != prestamo_id]
+    return {"mensaje": "Préstamo eliminado"}
+

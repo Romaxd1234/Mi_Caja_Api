@@ -6,13 +6,14 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.label import Label
 from kivy.uix.button import Button
-import json
-import os
+import requests
+
+API_BASE = "https://mi-caja-api.onrender.com/tiendas"  # Cambiar si hace falta
 
 class RegistroSemanal(Screen):
-    def __init__(self, **kwargs):
+    def __init__(self, tienda_id=1, **kwargs):
         super().__init__(**kwargs)
-        self.cortes_semanales_path = r"C:\Users\fabiola gomey martin\Documents\APP\data\cortes_semanales"
+        self.tienda_id = tienda_id
         self.root_layout = RelativeLayout()
         self.add_widget(self.root_layout)
 
@@ -36,6 +37,21 @@ class RegistroSemanal(Screen):
     def on_pre_enter(self):
         self.mostrar_lista_cortes()
 
+    # ---------------------
+    # FUNCIONES API
+    # ---------------------
+    def obtener_cortes_semanales(self):
+        try:
+            resp = requests.get(f"{API_BASE}/{self.tienda_id}/cortes/semanales")
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            print(f"Error al obtener cortes semanales: {e}")
+            return []
+
+    # ---------------------
+    # LISTA DE CORTES
+    # ---------------------
     def mostrar_lista_cortes(self, *args):
         self.estado = "lista"
         self.corte_seleccionado = None
@@ -52,71 +68,52 @@ class RegistroSemanal(Screen):
         grid.bind(minimum_height=grid.setter("height"))
         scroll.add_widget(grid)
 
-        carpeta = self.cortes_semanales_path
-        if not os.path.exists(carpeta):
-            os.makedirs(carpeta)
-
-        archivos = sorted([f for f in os.listdir(carpeta) if f.endswith(".json")], reverse=True)
-
-        if not archivos:
+        cortes_semanales = self.obtener_cortes_semanales()
+        if not cortes_semanales:
             grid.add_widget(Label(text="No hay cortes semanales guardados.", size_hint_y=None, height=40))
         else:
-            for archivo in archivos:
-                btn = Button(text=archivo, size_hint_y=None, height=40)
-                btn.bind(on_release=lambda inst, a=archivo: self.mostrar_detalle_corte(a))
+            for corte in sorted(cortes_semanales, key=lambda x: x.get("id",0), reverse=True):
+                texto = f"Corte {corte['id']} - {corte.get('fecha_cierre', '')}"
+                btn = Button(text=texto, size_hint_y=None, height=40)
+                btn.bind(on_release=lambda inst, c=corte: self.mostrar_detalle_corte(c))
                 grid.add_widget(btn)
 
         self.main_layout.add_widget(scroll)
 
-    def mostrar_detalle_corte(self, archivo):
+    # ---------------------
+    # DETALLE DE CORTES
+    # ---------------------
+    def mostrar_detalle_corte(self, corte):
         self.estado = "detalle"
-        self.corte_seleccionado = archivo
+        self.corte_seleccionado = corte
         self.main_layout.clear_widgets()
         self.btn_volver.text = "↩ Volver a Lista"
         self.btn_volver.unbind(on_release=self.volver_a_principal)
         self.btn_volver.bind(on_release=self.mostrar_lista_cortes)
 
-        ruta_archivo = os.path.join(self.cortes_semanales_path, archivo)
-        try:
-            with open(ruta_archivo, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            self.main_layout.add_widget(Label(text=f"Error al cargar el archivo:\n{str(e)}"))
-            return
-
-        resumen_layout = BoxLayout(orientation="vertical", size_hint_y=None)
+        resumen_layout = BoxLayout(orientation="vertical", size_hint_y=None, padding=5, spacing=5)
         resumen_layout.bind(minimum_height=resumen_layout.setter("height"))
 
-        resumen_layout.add_widget(Label(text=f"Corte Semanal: {archivo}", size_hint_y=None, height=30, bold=True, font_size=18))
-        resumen_layout.add_widget(Label(text=f"Fecha Cierre: {data.get('fecha_cierre', '')}", size_hint_y=None, height=25))
-        resumen_layout.add_widget(Label(text=f"Número de Cortes: {data.get('num_cortes', '')}", size_hint_y=None, height=25))
-        resumen_layout.add_widget(Label(text=f"Total Ventas Semana: ${data.get('total_ventas_semana', 0):,.2f}", size_hint_y=None, height=25))
-        resumen_layout.add_widget(Label(text=f"Total Sueldos: ${data.get('total_sueldos', 0):,.2f}", size_hint_y=None, height=25))
-        resumen_layout.add_widget(Label(text=f"Total Préstamos Pagados: ${data.get('total_prestamos_pagados', 0):,.2f}", size_hint_y=None, height=25))
-        resumen_layout.add_widget(Label(text=f"Total Ganancias: ${data.get('total_ganancias', 0):,.2f}", size_hint_y=None, height=25))
+        # ID del corte
+        resumen_layout.add_widget(Label(text=f"Corte Semanal: {corte['id']}", size_hint_y=None, height=30, font_size=18, bold=True))
 
-        # Mostrar pagos de préstamos si existen
-        pagos_prestamos = data.get("pagos_prestamos", {})
-        if pagos_prestamos:
-            resumen_layout.add_widget(Label(text="Pagos de Préstamos:", size_hint_y=None, height=30, bold=True, font_size=16))
+        # Fecha de cierre
+        resumen_layout.add_widget(Label(text=f"Fecha de Cierre: {corte.get('fecha','')}", size_hint_y=None, height=25))
 
-            scroll_prestamos = ScrollView(size_hint=(1, 1))
-            grid_prestamos = GridLayout(cols=2, spacing=5, size_hint_y=None)
-            grid_prestamos.bind(minimum_height=grid_prestamos.setter("height"))
-            scroll_prestamos.add_widget(grid_prestamos)
+        # Usuario que hizo el corte: tomamos del primer corte diario
+        cortes_diarios = corte.get("cortes_diarios", [])
+        usuario = cortes_diarios[0].get("usuario_que_corto","") if cortes_diarios else ""
+        resumen_layout.add_widget(Label(text=f"Usuario que cerró: {usuario}", size_hint_y=None, height=25))
 
-            # Agregar encabezados
-            grid_prestamos.add_widget(Label(text="Empleado", size_hint_y=None, height=30, bold=True))
-            grid_prestamos.add_widget(Label(text="Monto Pagado", size_hint_y=None, height=30, bold=True))
-
-            for empleado, monto in pagos_prestamos.items():
-                grid_prestamos.add_widget(Label(text=empleado, size_hint_y=None, height=30))
-                grid_prestamos.add_widget(Label(text=f"${monto:,.2f}", size_hint_y=None, height=30))
-
-            resumen_layout.add_widget(scroll_prestamos)
+        # Total ventas semana
+        total_ventas_semana = sum(d.get("total",0) for d in cortes_diarios)
+        resumen_layout.add_widget(Label(text=f"Total Ventas Semana: ${total_ventas_semana:,.2f}", size_hint_y=None, height=25))
 
         self.main_layout.add_widget(resumen_layout)
 
+    # ---------------------
+    # BOTONES VOLVER
+    # ---------------------
     def on_volver(self, instance):
         self.manager.current = "pantalla_principal"
 

@@ -8,21 +8,21 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.popup import Popup
 from kivy.uix.label import Label
-from kivy.properties import ListProperty
-from kivy.properties import StringProperty
+from kivy.properties import ListProperty, StringProperty
 from datetime import datetime
+from rapidfuzz import process
 import json
-import os
-from rapidfuzz import process  # pip install rapidfuzz
+import requests
+
+API_URL = "https://mi-caja-api.onrender.com/tiendas"
 
 class VentaInventario(Screen):
     productos = ListProperty([])  # Inventario completo
     nombre_usuario = StringProperty("")
 
-
     def __init__(self, **kwargs):
         super(VentaInventario, self).__init__(**kwargs)
-        self.ruta_tienda = None
+        self.tienda_id = None
         self.carrito = []
         self.producto_seleccionado = None
         self.boton_seleccionado = None
@@ -31,7 +31,6 @@ class VentaInventario(Screen):
         # Layout base con fondo
         self.layout = FloatLayout()
         self.add_widget(self.layout)
-
         fondo = Image(
             source=r'C:\Users\USER\Documents\APP\APP\assets\fondo.png',
             allow_stretch=True,
@@ -69,17 +68,14 @@ class VentaInventario(Screen):
         self.input_piezas = TextInput(hint_text="Piezas", multiline=False, input_filter='int', size_hint_x=0.3)
         self.boton_seleccionar = Button(text="Seleccionar", size_hint_x=0.7)
         self.boton_seleccionar.bind(on_release=self.agregar_al_carrito)
-
         self.boton_eliminar = Button(text="Eliminar", size_hint_x=0.7)
         self.boton_eliminar.bind(on_release=self.eliminar_producto)
-
         layout_cantidad.add_widget(self.input_piezas)
         layout_cantidad.add_widget(self.boton_seleccionar)
         layout_cantidad.add_widget(self.boton_eliminar)
-
         self.layout_principal.add_widget(layout_cantidad)
 
-        # Layout horizontal para botones Volver y Finalizar compra al fondo
+        # Botones Volver y Finalizar compra
         layout_botones_final = BoxLayout(size_hint_y=None, height=40, spacing=10)
         self.boton_volver = Button(text="Volver")
         self.boton_volver.bind(on_release=self.volver_a_principal)
@@ -89,43 +85,107 @@ class VentaInventario(Screen):
         layout_botones_final.add_widget(self.boton_finalizar)
         self.layout_principal.add_widget(layout_botones_final)
 
-        # Cargar productos si ruta está seteada
-        if self.ruta_tienda:
-            self.cargar_productos()
-            self.mostrar_resultados(self.productos)
-
-    def set_ruta_tienda(self, ruta):
-        self.ruta_tienda = ruta
+    # --------------------- Funciones API ---------------------
+    def set_tienda_id(self, tienda_id):
+        self.tienda_id = tienda_id
         self.cargar_productos()
-        self.mostrar_resultados(self.productos)
 
     def set_usuario(self, nombre):
         self.nombre_usuario = nombre
 
     def cargar_productos(self):
-        if not self.ruta_tienda or not os.path.exists(self.ruta_tienda):
+        if not self.tienda_id:
+            print("Tienda ID no seteada")
             self.productos = []
             return
-        with open(self.ruta_tienda, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            inventario = data.get('inventario', [])
-            # Filtrar productos con piezas > 0
-            self.productos = [prod for prod in inventario if prod.get('piezas', 0) > 0]
+        try:
+            resp = requests.get(f"{API_URL}/{self.tienda_id}/inventario/")
+            print(resp.status_code, resp.text)  # <<-- agregar debug
+            if resp.status_code == 200:
+                inventario = resp.json()
+                print("Inventario crudo:", inventario)  # <<-- agregar debug
+                self.productos = [prod for prod in inventario if prod.get('piezas', 0) > 0]
+                print("Productos filtrados:", self.productos)
+            else:
+                self.productos = []
+                print("Error cargando inventario:", resp.status_code, resp.text)
+        except Exception as e:
+            self.productos = []
+            print("Error API cargar productos:", e)
+        self.mostrar_resultados(self.productos)
 
-    def guardar_productos(self):
-        if not self.ruta_tienda:
+    def guardar_productos_api(self):
+        """Actualiza inventario en API después de venta"""
+        if not self.tienda_id:
             return
-        if os.path.exists(self.ruta_tienda):
-            with open(self.ruta_tienda, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-        else:
-            data = {}
+        for item in self.productos:
+            try:
+                resp = requests.put(
+                    f"{API_URL}/{self.tienda_id}/inventario/{item['id']}",
+                    params={"producto": item['producto'], "precio": float(item['precio']), "piezas": int(item['piezas'])}
+                )
+                if resp.status_code != 200:
+                    print(f"Error actualizando {item['producto']}:", resp.text)
+            except Exception as e:
+                print("Error API actualizar producto:", e)
 
-        data['inventario'] = self.productos
+    def confirmar_venta(self, instance):
+        """Confirma venta: descuenta inventario y guarda venta en API como lista de productos"""
+        if not self.tienda_id:
+            self.mostrar_mensaje("Tienda no definida")
+            return
 
-        with open(self.ruta_tienda, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        # Descontar piezas localmente
+        for item_carrito in self.carrito:
+            for prod in self.productos:
+                if prod['producto'] == item_carrito['producto'] and prod['precio'] == item_carrito['precio']:
+                    prod['piezas'] -= item_carrito['cantidad']
+                    if prod['piezas'] < 0:
+                        prod['piezas'] = 0
 
+        # Actualizar inventario en API
+        self.guardar_productos_api()
+
+        # Armar lista de productos para enviar directamente
+        lista_venta = [
+            {
+                "producto": item["producto"],  
+                "precio": float(item["precio"]),
+                "cantidad": int(item["cantidad"])
+            }
+            for item in self.carrito
+        ]
+
+        try:
+            print("Datos a enviar a API (lista):", json.dumps(lista_venta, indent=2))
+
+            # Enviar la venta como lista JSON
+            resp = requests.post(
+                f"{API_URL}/{self.tienda_id}/ventas/",
+                params={"usuario": self.nombre_usuario, "fuera_inventario": False},  # si quieres mantener este parámetro
+                json=lista_venta
+            )
+
+            if resp.status_code not in (200, 201):
+                print("Error detalle API:", resp.text)
+                self.mostrar_mensaje(f"Error guardando venta en API: {resp.text}")
+                return
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.mostrar_mensaje(f"Error API venta: {e}")
+            return
+
+        # Limpiar carrito y actualizar UI si todo salió bien
+        self.carrito.clear()
+        self.mostrar_resultados(self.productos)
+        if hasattr(self, 'popup') and self.popup:
+            self.popup.dismiss()
+        self.mostrar_mensaje("Venta confirmada con éxito.")
+
+
+    # --------------------- Funciones UI (sin cambios) ---------------------
     def buscar(self, instance):
         texto = self.input_busqueda.text.strip()
         if texto:
@@ -138,68 +198,24 @@ class VentaInventario(Screen):
         productos_nombres = [prod['producto'] for prod in self.productos]
         resultados = process.extract(texto_busqueda, productos_nombres, limit=10, score_cutoff=60)
         indices = [r[2] for r in resultados]
-        productos_filtrados = [self.productos[i] for i in indices]
-        return productos_filtrados
+        return [self.productos[i] for i in indices]
 
     def mostrar_resultados(self, lista_productos):
         self.grid_resultados.clear_widgets()
-        # Filtrar aquí también para seguridad
         productos_filtrados = [prod for prod in lista_productos if prod.get('piezas', 0) > 0]
         for idx, prod in enumerate(productos_filtrados):
             piezas = prod.get('piezas', 0)
             btn = Button(text=f"{prod['producto']}  -  ${prod['precio']}  -  {piezas} piezas", size_hint_y=None, height=40)
             btn.bind(on_release=lambda btn, i=idx, lp=productos_filtrados: self.seleccionar_producto(i, lp, btn))
-            if self.boton_seleccionado == btn:
-                btn.background_color = (0, 0, 1, 1)  # Azul
-            else:
-                btn.background_color = (1, 1, 1, 1)  # Blanco
+            btn.background_color = (1, 1, 1, 1) if self.boton_seleccionado != btn else (0,0,1,1)
             self.grid_resultados.add_widget(btn)
-
-    def eliminar_producto(self, instance):
-        if not self.producto_seleccionado:
-            self.mostrar_mensaje("No hay ningún producto seleccionado para eliminar.")
-            return
-
-        nombre_seleccionado = self.producto_seleccionado.get('producto', None)
-        if not nombre_seleccionado:
-            self.mostrar_mensaje("Producto seleccionado inválido.")
-            return
-
-        # Buscar en el carrito y eliminar el producto seleccionado
-        eliminado = False
-        for i, item in enumerate(self.carrito):
-            if item['producto'] == nombre_seleccionado:
-                del self.carrito[i]
-                eliminado = True
-                break
-
-        if eliminado:
-            self.mostrar_mensaje(f"Producto '{nombre_seleccionado}' eliminado del carrito.")
-        else:
-            self.mostrar_mensaje("El producto seleccionado no está en el carrito.")
-
-    def mostrar_popup(self, titulo, mensaje):
-        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        contenido.add_widget(Label(text=mensaje))
-        boton_cerrar = Button(text="Cerrar", size_hint_y=None, height=40)
-        contenido.add_widget(boton_cerrar)
-
-        popup = Popup(title=titulo, content=contenido,
-                      size_hint=(0.5, 0.4))
-        boton_cerrar.bind(on_release=popup.dismiss)
-        popup.open()
-
-
 
     def seleccionar_producto(self, index, lista_actual, boton):
         self.producto_seleccionado = lista_actual[index]
-
         if self.boton_seleccionado:
             self.boton_seleccionado.background_color = (1, 1, 1, 1)
         boton.background_color = (0, 0, 1, 1)
         self.boton_seleccionado = boton
-
-    # Actualiza el label con el nombre del producto seleccionado
         self.label_seleccion.text = f"Producto seleccionado: {self.producto_seleccionado['producto']}"
 
     def agregar_al_carrito(self, instance):
@@ -214,12 +230,10 @@ class VentaInventario(Screen):
             self.mostrar_mensaje("Cantidad de piezas inválida.")
             return
 
-        # Verifica si hay suficientes piezas en inventario
         if piezas > self.producto_seleccionado.get('piezas', 0):
             self.mostrar_mensaje(f"No hay suficientes piezas disponibles. Solo quedan {self.producto_seleccionado.get('piezas', 0)}")
             return
 
-        # Agrega o suma piezas si ya está en carrito
         encontrado = False
         for item in self.carrito:
             if item['producto'] == self.producto_seleccionado['producto'] and item['precio'] == self.producto_seleccionado['precio']:
@@ -232,23 +246,33 @@ class VentaInventario(Screen):
             self.carrito.append(nuevo_item)
 
         self.input_piezas.text = ''
-        #self.mostrar_popup_carrito()
-
         if self.boton_seleccionado:
             self.boton_seleccionado.background_color = (1, 1, 1, 1)
             self.boton_seleccionado = None
             self.producto_seleccionado = None
-        
+
+    def eliminar_producto(self, instance):
+        if not self.producto_seleccionado:
+            self.mostrar_mensaje("No hay ningún producto seleccionado para eliminar.")
+            return
+        nombre = self.producto_seleccionado.get('producto', None)
+        if not nombre:
+            self.mostrar_mensaje("Producto seleccionado inválido.")
+            return
+        eliminado = False
+        for i, item in enumerate(self.carrito):
+            if item['producto'] == nombre:
+                del self.carrito[i]
+                eliminado = True
+                break
+        self.mostrar_mensaje(f"Producto '{nombre}' eliminado del carrito." if eliminado else "El producto seleccionado no está en el carrito.")
 
     def mostrar_mensaje(self, texto):
-        popup = Popup(title="Aviso",
-                      content=Label(text=texto),
-                      size_hint=(0.6, 0.4))
+        popup = Popup(title="Aviso", content=Label(text=texto), size_hint=(0.6,0.4))
         popup.open()
 
     def mostrar_popup_carrito(self):
         contenido = BoxLayout(orientation='vertical', spacing=10, padding=10)
-
         grid = GridLayout(cols=2, size_hint_y=None, spacing=5)
         grid.bind(minimum_height=grid.setter('height'))
 
@@ -256,15 +280,13 @@ class VentaInventario(Screen):
         for item in self.carrito:
             subtotal = item['cantidad'] * float(item['precio'])
             total += subtotal
-
             lbl_prod = Label(text=f"{item['cantidad']} {item['producto']}", size_hint_y=None, height=30)
             lbl_sub = Label(text=f"${subtotal:.2f}", size_hint_y=None, height=30, halign='right', valign='middle')
-            lbl_sub.bind(size=lbl_sub.setter('text_size'))  # para alinear bien el texto
-
+            lbl_sub.bind(size=lbl_sub.setter('text_size'))
             grid.add_widget(lbl_prod)
             grid.add_widget(lbl_sub)
 
-        scroll = ScrollView(size_hint=(1, 0.7))
+        scroll = ScrollView(size_hint=(1,0.7))
         scroll.add_widget(grid)
         contenido.add_widget(scroll)
 
@@ -275,67 +297,25 @@ class VentaInventario(Screen):
         layout_abajo.add_widget(btn_total)
         contenido.add_widget(layout_abajo)
 
-        self.popup = Popup(title="Carrito de venta", content=contenido,
-                      size_hint=(0.8, 0.8), auto_dismiss=False)
-
+        self.popup = Popup(title="Carrito de venta", content=contenido, size_hint=(0.8,0.8), auto_dismiss=False)
         btn_cancelar.bind(on_release=lambda x: self.popup.dismiss())
-        btn_total.bind(on_release=self.confirmar_venta)
+        def on_click_total(instance):
+            try:
+                self.confirmar_venta(instance)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                self.mostrar_mensaje(f"Ocurrió un error: {e}")
+
+        btn_total.bind(on_release=on_click_total)
 
         self.popup.open()
 
-    def confirmar_venta(self, instance):
-        ruta_carpeta = r"C:\Users\fabiola gomey martin\Documents\APP\data"
-        if not os.path.exists(ruta_carpeta):
-            os.makedirs(ruta_carpeta)
-
-        ruta_ventas = os.path.join(ruta_carpeta, "ventas.json")
-
-        # Descontar piezas del inventario
-        for item_carrito in self.carrito:
-            for prod in self.productos:
-                if prod['producto'] == item_carrito['producto'] and prod['precio'] == item_carrito['precio']:
-                    prod['piezas'] -= item_carrito['cantidad']
-                    if prod['piezas'] < 0:
-                        prod['piezas'] = 0  # No negativo
-
-        # Guardar inventario actualizado
-        self.guardar_productos()
-
-        # Guardar la venta en ventas.json
-        venta = {
-            "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "usuario": self.nombre_usuario,
-            "productos": self.carrito.copy(),
-            "total": sum(float(p['precio']) * int(p['cantidad']) for p in self.carrito),
-            "fuera_inventario": False  # Indica que no salió del inventario
-
-        }
-
-        try:
-            if os.path.exists(ruta_ventas):
-                with open(ruta_ventas, 'r', encoding='utf-8') as f:
-                    ventas = json.load(f)
-            else:
-                ventas = []
-
-            ventas.append(venta)
-
-            with open(ruta_ventas, 'w', encoding='utf-8') as f:
-                json.dump(ventas, f, indent=4, ensure_ascii=False)
-
-        except Exception as e:
-            self.mostrar_mensaje(f"Error al guardar la venta: {e}")
-            return
-
-        # Limpiar carrito y cerrar popup
-        self.mostrar_resultados(self.productos)
-        self.carrito.clear()
-        self.popup.dismiss()
-        self.mostrar_mensaje("Venta confirmada con éxito.")
-
     def on_enter(self):
-        self.cargar_productos()
-        self.mostrar_resultados(self.productos)
+        if self.tienda_id:
+            self.cargar_productos()
+        else:
+            print("Tienda ID aún no seteada, esperar antes de cargar inventario")
 
     def volver_a_principal(self, instance):
         self.manager.current = 'pantalla_principal'

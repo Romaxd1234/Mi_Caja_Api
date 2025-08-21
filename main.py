@@ -39,13 +39,8 @@ class MiCajaApp(App):
         sm.add_widget(CorteSemanalScreen(name="corte_semanal"))
         sm.add_widget(RegistroSemanal(name="registro_semanal"))
 
-        ruta_inventario = 'data/inventario.json'
         inventario_screen = sm.get_screen('inventario')
         venta_screen = sm.get_screen('venta_inventario')
-
-        inventario_screen.set_ruta_tienda(ruta_inventario)
-        venta_screen.set_ruta_tienda(ruta_inventario)
-        venta_screen.productos = inventario_screen.productos  # (opcional y potente)
 
 
         # Controlamos la pantalla inicial según exista o no la config

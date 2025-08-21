@@ -51,6 +51,10 @@ class AbrirTiendaScreen(Screen):
         layout_principal.add_widget(layout)
         self.add_widget(layout_principal)
 
+
+    def set_ruta_tienda(self, ruta):
+        self.ruta_tienda = ruta
+
     def abrir_tienda(self, instance):
         tienda_id = self.obtener_id_por_nombre(self.nombre_input.text)
         contra = self.contra_input.text.strip()
@@ -71,9 +75,17 @@ class AbrirTiendaScreen(Screen):
             if tienda.get("password", "").strip() == contra.strip():
                 self.msg.text = "Tienda abierta correctamente"
 
+                # Guardar la tienda en la pantalla principal
+                pantalla_principal = self.manager.get_screen("pantalla_principal")
+                pantalla_principal.tienda_actual = tienda
+
                 # Pasar el ID de la tienda a SeleccionRolScreen
                 pantalla_rol = self.manager.get_screen("seleccion_rol")
-                pantalla_rol.tienda_actual_id = tienda["id"]  # <-- aquí le pasamos el ID
+                pantalla_rol.tienda_actual_id = tienda["id"]
+
+                # Pasar la tienda al inventario
+                inventario_screen = self.manager.get_screen("inventario")
+                inventario_screen.set_tienda_api(tienda)
 
                 self.manager.current = "seleccion_rol"
             else:
@@ -81,6 +93,7 @@ class AbrirTiendaScreen(Screen):
 
         except Exception as e:
             self.msg.text = f"Error de conexión: {str(e)}"
+
 
 
             
