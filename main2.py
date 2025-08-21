@@ -5,15 +5,22 @@ from datetime import datetime
 
 app = FastAPI(title="API Tiendas Completa")
 
+# ---------------------
+# Modelos
+# ---------------------
 class ProductoVenta(BaseModel):
     producto: str
     precio: float
-    cantidad: int = 1  # Si no envían cantidad, por defecto es 1
+    cantidad: int = 1
 
 class VentaRequest(BaseModel):
     usuario: str
     productos: List[ProductoVenta]
     fuera_inventario: bool = True
+
+class PrestamoRequest(BaseModel):
+    cantidad: float
+    descripcion: str = ""
 
 # ---------------------
 # Base de datos en memoria
@@ -24,9 +31,9 @@ db = {
 }
 
 # ---------------------
-# Función para crear estructura vacía de tienda
+# Función para crear estructura de tienda
 # ---------------------
-def crear_estructura_tienda(nombre, password):
+def crear_estructura_tienda(nombre: str, password: str):
     return {
         "id": None,
         "nombre": nombre,
@@ -67,7 +74,6 @@ def obtener_tienda(tienda_id: int):
 
 @tiendas_router.delete("/{tienda_id}")
 def eliminar_tienda(tienda_id: int):
-    global db
     tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
     if not tienda:
         raise HTTPException(status_code=404, detail="Tienda no encontrada")
@@ -83,14 +89,14 @@ patron_router = APIRouter(prefix="/tiendas/{tienda_id}/patron", tags=["Patrón"]
 def obtener_patron(tienda_id: int):
     tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
     if not tienda:
-        raise HTTPException(status_code=404)
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
     return tienda["patron"]
 
 @patron_router.post("/")
 def crear_patron(tienda_id: int, nombre: str, password: str):
     tienda = next((t for t in db["tiendas"] if t["id"] == tienda_id), None)
     if not tienda:
-        raise HTTPException(status_code=404)
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
     tienda["patron"] = {"nombre": nombre, "password": password}
     return tienda["patron"]
 
@@ -306,27 +312,9 @@ def eliminar_corte_semanal(tienda_id: int, corte_id: int):
     return {"mensaje": "Corte semanal eliminado"}
 
 # ---------------------
-# Incluir routers en app
-# ---------------------
-app.include_router(tiendas_router)
-app.include_router(patron_router)
-app.include_router(empleados_router)
-app.include_router(inventario_router)
-app.include_router(ventas_router)
-app.include_router(cortes_router)
-
-@app.get("/")
-def raiz():
-    return {"mensaje": "API Tiendas completa, lista para usar"}
-
-# ---------------------
 # Router Préstamos Empleados
 # ---------------------
 prestamos_router = APIRouter(prefix="/tiendas/{tienda_id}/empleados/{empleado_id}/prestamos", tags=["Préstamos"])
-
-class PrestamoRequest(BaseModel):
-    cantidad: float
-    descripcion: str = ""
 
 @prestamos_router.get("/")
 def listar_prestamos(tienda_id: int, empleado_id: int):
@@ -381,4 +369,17 @@ def eliminar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int):
     empleado["prestamos"] = [p for p in empleado.get("prestamos", []) if p["id"] != prestamo_id]
     return {"mensaje": "Préstamo eliminado"}
 
+# ---------------------
+# Incluir routers en app
+# ---------------------
+app.include_router(tiendas_router)
+app.include_router(patron_router)
+app.include_router(empleados_router)
+app.include_router(inventario_router)
+app.include_router(ventas_router)
+app.include_router(cortes_router)
 app.include_router(prestamos_router)
+
+@app.get("/")
+def raiz():
+    return {"mensaje": "API Tiendas completa, lista para usar"}
