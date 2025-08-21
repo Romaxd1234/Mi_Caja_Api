@@ -381,3 +381,4 @@ def eliminar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int):
     empleado["prestamos"] = [p for p in empleado.get("prestamos", []) if p["id"] != prestamo_id]
     return {"mensaje": "Préstamo eliminado"}
 
+app.include_router(prestamos_router)
