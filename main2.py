@@ -4,16 +4,14 @@ from typing import List
 from datetime import datetime
 from databases import Database
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, JSON
-import asyncio
 
+# ---------------------
+# Base de datos
+# ---------------------
 DATABASE_URL = "postgresql://invex_db_user:uR4BGxN3VLcanhCdVSO6laFUgtzzCiwG@dpg-d2kacbv5r7bs73ekh5bg-a.oregon-postgres.render.com:5432/invex_db"
 database = Database(DATABASE_URL)
 metadata = MetaData()
 
-
-# ---------------------
-# Tabla principal
-# ---------------------
 tiendas_table = Table(
     "tiendas",
     metadata,
@@ -53,7 +51,7 @@ class PrestamoRequest(BaseModel):
     descripcion: str = ""
 
 # ---------------------
-# Función utilitaria
+# Funciones utilitarias
 # ---------------------
 def crear_estructura_tienda(nombre: str, password: str):
     return {
@@ -64,9 +62,6 @@ def crear_estructura_tienda(nombre: str, password: str):
         "cortes": {"diarios": [], "semanales": []}
     }
 
-# ---------------------
-# Helper
-# ---------------------
 async def obtener_tienda_json(tienda_id: int):
     query = tiendas_table.select().where(tiendas_table.c.id == tienda_id)
     tienda = await database.fetch_one(query)
@@ -89,7 +84,7 @@ cortes_router = APIRouter(prefix="/tiendas/{tienda_id}/cortes", tags=["Cortes"])
 prestamos_router = APIRouter(prefix="/tiendas/{tienda_id}/empleados/{empleado_id}/prestamos", tags=["Préstamos"])
 
 # ---------------------
-# Tiendas
+# Rutas Tiendas
 # ---------------------
 @tiendas_router.get("/")
 async def listar_tiendas():
@@ -121,7 +116,7 @@ async def eliminar_tienda(tienda_id: int):
     return {"mensaje": "Tienda eliminada"}
 
 # ---------------------
-# Patrón
+# Rutas Patrón
 # ---------------------
 @patron_router.get("/")
 async def obtener_patron(tienda_id: int):
@@ -140,7 +135,7 @@ async def eliminar_patron(tienda_id: int):
     return {"mensaje": "Patrón eliminado"}
 
 # ---------------------
-# Empleados
+# Rutas Empleados
 # ---------------------
 @empleados_router.get("/")
 async def listar_empleados(tienda_id: int):
@@ -176,7 +171,7 @@ async def eliminar_empleado(tienda_id: int, empleado_id: int):
     return {"mensaje": "Empleado eliminado"}
 
 # ---------------------
-# Inventario
+# Rutas Inventario
 # ---------------------
 @inventario_router.get("/")
 async def listar_inventario(tienda_id: int):
@@ -210,7 +205,7 @@ async def eliminar_producto(tienda_id: int, producto_id: int):
     return {"mensaje": "Producto eliminado"}
 
 # ---------------------
-# Ventas
+# Rutas Ventas
 # ---------------------
 @ventas_router.get("/")
 async def listar_ventas(tienda_id: int):
@@ -221,7 +216,14 @@ async def listar_ventas(tienda_id: int):
 async def agregar_venta(tienda_id: int, venta: VentaRequest):
     tienda = await obtener_tienda_json(tienda_id)
     total = sum(p.precio * p.cantidad for p in venta.productos)
-    nueva_venta = {"id": len(tienda["ventas"])+1, "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "usuario": venta.usuario, "productos": [p.dict() for p in venta.productos], "total": total, "fuera_inventario": venta.fuera_inventario}
+    nueva_venta = {
+        "id": len(tienda["ventas"])+1,
+        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "usuario": venta.usuario,
+        "productos": [p.dict() for p in venta.productos],
+        "total": total,
+        "fuera_inventario": venta.fuera_inventario
+    }
     ventas = tienda["ventas"] + [nueva_venta]
     await actualizar_tienda(tienda_id, {"ventas": ventas})
     return nueva_venta
@@ -234,7 +236,7 @@ async def eliminar_venta(tienda_id: int, venta_id: int):
     return {"mensaje": "Venta eliminada"}
 
 # ---------------------
-# Cortes
+# Rutas Cortes
 # ---------------------
 @cortes_router.get("/diarios")
 async def listar_cortes_diarios(tienda_id: int):
@@ -244,7 +246,14 @@ async def listar_cortes_diarios(tienda_id: int):
 @cortes_router.post("/diarios")
 async def crear_corte_diario(tienda_id: int, usuario_que_corto: str):
     tienda = await obtener_tienda_json(tienda_id)
-    corte = {"id": len(tienda["cortes"]["diarios"])+1, "fecha": datetime.now().strftime("%Y-%m-%d"), "hora": datetime.now().strftime("%H:%M:%S"), "usuario_que_corto": usuario_que_corto, "ventas": tienda["ventas"].copy(), "total": sum(v["total"] for v in tienda["ventas"])}
+    corte = {
+        "id": len(tienda["cortes"]["diarios"])+1,
+        "fecha": datetime.now().strftime("%Y-%m-%d"),
+        "hora": datetime.now().strftime("%H:%M:%S"),
+        "usuario_que_corto": usuario_que_corto,
+        "ventas": tienda["ventas"].copy(),
+        "total": sum(v["total"] for v in tienda["ventas"])
+    }
     cortes_diarios = tienda["cortes"]["diarios"] + [corte]
     cortes = {"diarios": cortes_diarios, "semanales": tienda["cortes"]["semanales"]}
     await actualizar_tienda(tienda_id, {"cortes": cortes, "ventas": []})
@@ -281,7 +290,7 @@ async def eliminar_corte_semanal(tienda_id: int, corte_id: int):
     return {"mensaje": "Corte semanal eliminado"}
 
 # ---------------------
-# Préstamos
+# Rutas Préstamos
 # ---------------------
 @prestamos_router.get("/")
 async def listar_prestamos(tienda_id: int, empleado_id: int):
@@ -295,7 +304,12 @@ async def agregar_prestamo(tienda_id: int, empleado_id: int, prestamo: PrestamoR
     tienda = await obtener_tienda_json(tienda_id)
     empleado = next((e for e in tienda["empleados"] if e["id"] == empleado_id), None)
     if not empleado: raise HTTPException(status_code=404)
-    nuevo = {"id": len(empleado["prestamos"])+1, "cantidad": prestamo.cantidad, "descripcion": prestamo.descripcion, "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+    nuevo = {
+        "id": len(empleado["prestamos"])+1,
+        "cantidad": prestamo.cantidad,
+        "descripcion": prestamo.descripcion,
+        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
     empleado["prestamos"].append(nuevo)
     empleados = [e if e["id"] != empleado_id else empleado for e in tienda["empleados"]]
     await actualizar_tienda(tienda_id, {"empleados": empleados})
@@ -317,15 +331,10 @@ async def editar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int, ca
     if descripcion is not None:
         prestamo["descripcion"] = descripcion
     
-    # Actualizar empleado en la tienda
     empleados = [e if e["id"] != empleado_id else empleado for e in tienda["empleados"]]
     await actualizar_tienda(tienda_id, {"empleados": empleados})
-    
     return prestamo
 
-# ---------------------
-# Eliminar préstamo
-# ---------------------
 @prestamos_router.delete("/{prestamo_id}")
 async def eliminar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int):
     tienda = await obtener_tienda_json(tienda_id)
@@ -336,14 +345,12 @@ async def eliminar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int):
     prestamos = [p for p in empleado["prestamos"] if p["id"] != prestamo_id]
     empleado["prestamos"] = prestamos
     
-    # Actualizar empleado en la tienda
     empleados = [e if e["id"] != empleado_id else empleado for e in tienda["empleados"]]
     await actualizar_tienda(tienda_id, {"empleados": empleados})
-    
     return {"mensaje": "Préstamo eliminado"}
 
 # ---------------------
-# Startup / Shutdown
+# Eventos Startup / Shutdown
 # ---------------------
 @app.on_event("startup")
 async def startup():
