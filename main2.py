@@ -10,15 +10,6 @@ DATABASE_URL = "postgresql://invex_db_user:uR4BGxN3VLcanhCdVSO6laFUgtzzCiwG@dpg-
 database = Database(DATABASE_URL)
 metadata = MetaData()
 
-async def test_connection():
-    try:
-        await database.connect()
-        print("Conexión a Render DB exitosa ✅")
-        await database.disconnect()
-    except Exception as e:
-        print("Error al conectar:", e)
-
-asyncio.run(test_connection())
 
 # ---------------------
 # Tabla principal
