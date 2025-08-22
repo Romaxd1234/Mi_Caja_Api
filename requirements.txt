@@ -60,7 +60,7 @@ python-multipart>=0.0.6
 databases[postgresql]
 asyncpg
 SQLAlchemy
-psycopg2-binary==2.9.7
+psycopg2-binary>=2.9.9
 
 
 # PyInstaller compatible con Python 3.10+ (solo si lo necesitas en local)
