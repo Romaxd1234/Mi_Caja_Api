@@ -47,17 +47,30 @@ class CorteSemanalScreen(Screen):
         return []
 
     def obtener_empleados(self):
-        resp = requests.get(f"{API_BASE}/{self.tienda_id}/empleados/")
-        if resp.status_code == 200:
-            return resp.json()
+        """Obtiene la lista de empleados desde la API."""
+        try:
+            resp = requests.get(f"{API_BASE}/{self.tienda_id}/empleados/")
+            if resp.status_code == 200:
+                return resp.json()  # Se espera que cada empleado tenga 'prestamos' como lista
+            print(f"Error al obtener empleados: {resp.status_code}")
+        except Exception as e:
+            print("Error de conexión:", e)
         return []
 
-    def actualizar_prestamo(self, empleado_id, nuevo_prestamo, pendiente):
+    def actualizar_prestamo(self, empleado_id, prestamo_id, nuevo_prestamo, pendiente):
+        """Actualiza el préstamo específico de un empleado en la API."""
         data = {
-            "prestamos": [{"cantidad": str(nuevo_prestamo), "pendiente": pendiente}]
+            "prestamos": [{"id": prestamo_id, "cantidad": str(nuevo_prestamo), "pendiente": pendiente}]
         }
-        resp = requests.put(f"{API_BASE}/{self.tienda_id}/empleados/{empleado_id}", json=data)
-        return resp.status_code == 200
+        try:
+            resp = requests.put(f"{API_BASE}/{self.tienda_id}/empleados/{empleado_id}", json=data)
+            if resp.status_code == 200:
+                print(f"Préstamo actualizado para empleado {empleado_id}")
+                return True
+            print(f"No se pudo actualizar préstamo: {resp.status_code} - {resp.text}")
+        except Exception as e:
+            print("Error al actualizar préstamo:", e)
+        return False
 
     def cerrar_corte_semanal_api(self):
         resp = requests.post(f"{API_BASE}/{self.tienda_id}/cortes/semanales")
@@ -143,6 +156,7 @@ class CorteSemanalScreen(Screen):
         self.layout_izquierdo.clear_widgets()
         self.layout_derecho.clear_widgets()
 
+        # Botón Volver
         btn_volver = Button(text="Volver", size_hint_y=None, height=50)
         btn_volver.bind(on_release=self.mostrar_vista_cortes)
         self.layout_izquierdo.add_widget(Widget())
@@ -157,35 +171,46 @@ class CorteSemanalScreen(Screen):
 
         for emp in empleados:
             prestamo_info = emp.get("prestamos", [])
-            cantidad = float(prestamo_info[0]["cantidad"]) if prestamo_info else 0
-            pendiente = prestamo_info[0]["pendiente"] if prestamo_info else False
+            if not prestamo_info:
+                continue
+            prestamo = prestamo_info[0]  # Tomamos el primer préstamo
+            cantidad = float(prestamo.get("cantidad", 0))
+            pendiente = prestamo.get("pendiente", False)
+            prestamo_id = prestamo.get("id")
+
             if cantidad > 0:
                 fila = BoxLayout(size_hint_y=None, height=40, spacing=5, padding=5)
                 lbl_nombre = Label(text=emp.get("nombre", "Desconocido"), size_hint_x=0.3)
                 lbl_prestamo = Label(text=f"${cantidad:,.2f}", size_hint_x=0.3)
                 input_pago = TextInput(text="", multiline=False, input_filter='float', size_hint_x=0.2)
                 btn_pagar = Button(text="Pagar", size_hint_x=0.2)
+
                 fila.add_widget(lbl_nombre)
                 fila.add_widget(lbl_prestamo)
                 fila.add_widget(input_pago)
                 fila.add_widget(btn_pagar)
                 prestamos_layout.add_widget(fila)
 
-                def pagar_prestamo(instance, empleado=emp, input_pago=input_pago, btn=btn_pagar):
+                def pagar_prestamo(instance, empleado=emp, prestamo=prestamo,
+                                input_pago=input_pago, lbl_prestamo=lbl_prestamo):
                     pago_texto = input_pago.text.strip()
                     if not pago_texto:
                         return
                     pago_val = float(pago_texto)
-                    if pago_val > cantidad:
-                        pago_val = cantidad
-                    nuevo_prestamo = cantidad - pago_val
+                    pago_val = min(pago_val, float(prestamo.get("cantidad", 0)))
+                    nuevo_prestamo = float(prestamo.get("cantidad", 0)) - pago_val
                     pendiente_nuevo = nuevo_prestamo > 0
 
-                    self.actualizar_prestamo(empleado["id"], nuevo_prestamo, pendiente_nuevo)
-                    self.pagos_prestamos_temp[empleado["nombre"]] = self.pagos_prestamos_temp.get(empleado["nombre"], 0) + pago_val
-                    input_pago.text = ""
-                    btn.disabled = True
-                    self.mostrar_vista_prestamos()
+                    # Actualizamos en API usando el ID del préstamo
+                    exito = self.actualizar_prestamo(empleado["id"], prestamo.get("id"), nuevo_prestamo, pendiente_nuevo)
+                    if exito:
+                        # Guardar pago temporal
+                        self.pagos_prestamos_temp[empleado["nombre"]] = self.pagos_prestamos_temp.get(empleado["nombre"], 0) + pago_val
+                        # Actualizamos visualización
+                        lbl_prestamo.text = f"${nuevo_prestamo:,.2f}"
+                        input_pago.text = ""
+                        if nuevo_prestamo <= 0:
+                            btn_pagar.disabled = True
 
                 btn_pagar.bind(on_release=pagar_prestamo)
 

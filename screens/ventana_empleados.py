@@ -298,14 +298,51 @@ class VentanaEmpleados(Screen):
         self.popup_prestamo.open()
 
     def hacer_prestamo(self, instance):
-        cantidad = self.input_cantidad.text.strip()
+        cantidad_texto = self.input_cantidad.text.strip()
         nombre_emp = self.spinner_empleados.text
-        if cantidad and nombre_emp and nombre_emp != "No hay empleados":
-            mensaje = f"Se le ha realizado un préstamo de ${cantidad} a {nombre_emp}"
-            pantalla_principal = self.manager.get_screen("pantalla_principal")
-            pantalla_principal.mostrar_alerta_prestamo(mensaje)
-        self.popup_prestamo.dismiss()
 
+        if not cantidad_texto or nombre_emp == "No hay empleados":
+            self.popup_prestamo.dismiss()
+            return
+
+        # Buscar el empleado
+        emp = next((e for e in self.empleados if e['nombre'] == nombre_emp), None)
+        if not emp:
+            self.mostrar_popup("Error", "Empleado no encontrado.")
+            self.popup_prestamo.dismiss()
+            return
+
+        # Convertir cantidad a float y validar
+        try:
+            cantidad = float(cantidad_texto)
+            if cantidad <= 0:
+                raise ValueError("La cantidad debe ser mayor a cero.")
+        except ValueError as ve:
+            self.mostrar_popup("Error", f"Cantidad inválida: {ve}")
+            return
+
+        # Crear el préstamo en la API
+        try:
+            url = f"{self.api_base}/{self.tienda_id}/empleados/{emp['id']}/prestamos/"
+            payload = {"cantidad": cantidad}
+            resp = requests.post(url, json=payload)  # << IMPORTANTE: usar json=
+            resp.raise_for_status()
+        except requests.exceptions.HTTPError as http_err:
+            self.mostrar_popup("Error", f"No se pudo crear el préstamo:\n{http_err}")
+            self.popup_prestamo.dismiss()
+            return
+        except Exception as e:
+            self.mostrar_popup("Error", f"No se pudo crear el préstamo:\n{e}")
+            self.popup_prestamo.dismiss()
+            return
+
+        # Mostrar alerta en la pantalla principal
+        mensaje = f"Se le ha realizado un préstamo de ${cantidad:.2f} a {nombre_emp}"
+        pantalla_principal = self.manager.get_screen("pantalla_principal")
+        pantalla_principal.mostrar_alerta_prestamo(mensaje)
+
+        # Cerrar popup del préstamo
+        self.popup_prestamo.dismiss()
     # -----------------------------
     # Popups genéricos
     # -----------------------------

@@ -9,7 +9,7 @@ from kivy.uix.relativelayout import RelativeLayout
 from kivy.properties import StringProperty
 from kivy.clock import Clock
 from kivy.uix.popup import Popup
-import pytz  # asegúrate de instalarlo con pip install pytz
+import pytz
 import requests
 from datetime import datetime
 
@@ -86,13 +86,11 @@ class CorteDiario(Screen):
             return
 
         # Zona horaria local
-        import pytz
         zona_local = pytz.timezone("America/Mexico_City")
         hoy = datetime.now(zona_local).date()
 
         for venta in ventas:
             try:
-                # Convertimos la fecha de la venta a UTC primero
                 fecha_venta_utc = datetime.strptime(venta["fecha"], "%Y-%m-%d %H:%M:%S")
                 fecha_venta_local = pytz.UTC.localize(fecha_venta_utc).astimezone(zona_local)
             except Exception:
@@ -104,28 +102,18 @@ class CorteDiario(Screen):
             tipo_venta = "Fuera de Inventario" if venta.get("fuera_inventario", False) else "Dentro de Inventario"
 
             for producto in venta.get("productos", []):
-                # Usuario
                 self.ventas_layout.add_widget(Label(text=venta.get("usuario", "-"), size_hint_y=None, height=30))
-
-                # Producto
                 cantidad = int(producto.get("cantidad", 1))
                 producto_texto = f"{cantidad} x {producto.get('producto', '-')}"
                 self.ventas_layout.add_widget(Label(text=producto_texto, size_hint_y=None, height=30))
-
-                # Tipo de venta
                 self.ventas_layout.add_widget(Label(text=tipo_venta, size_hint_y=None, height=30))
-
-                # Subtotal
                 subtotal = float(producto.get("precio", 0)) * cantidad
                 total += subtotal
                 self.ventas_layout.add_widget(Label(text=f"${subtotal:.2f}", size_hint_y=None, height=30))
-
-                # Hora local
                 hora_venta = fecha_venta_local.strftime("%H:%M:%S")
                 self.ventas_layout.add_widget(Label(text=hora_venta, size_hint_y=None, height=30))
 
         self.total_label.text = f"TOTAL CORTE DIARIO: ${total:.2f}"
-
 
     def set_tienda_id(self, tienda_id, nombre_usuario):
         self.tienda_id = tienda_id
@@ -142,9 +130,19 @@ class CorteDiario(Screen):
         except:
             total = 0
 
+        # 🔹 Generar fecha/hora local de Ciudad de México
+        zona_local = pytz.timezone("America/Mexico_City")
+        fecha_hora_local = datetime.now(zona_local).strftime("%Y-%m-%d %H:%M:%S")
+
         try:
-            resp = requests.post(f"{API_URL}/{self.tienda_id}/cortes/diarios",
-                                 params={"usuario_que_corto": self.nombre_usuario})
+            # 🔹 Enviar fecha/hora local al backend
+            resp = requests.post(
+                f"{API_URL}/{self.tienda_id}/cortes/diarios",
+                params={
+                    "usuario_que_corto": self.nombre_usuario,
+                    "fecha_corte": fecha_hora_local
+                }
+            )
             resp.raise_for_status()
             resumen = resp.json()
         except Exception as e:
@@ -165,13 +163,11 @@ class CorteDiario(Screen):
         contenido.add_widget(Label(text="✅ CORTE GUARDADO"))
         contenido.add_widget(Label(text=f"Usuario: {resumen['usuario_que_corto']}"))
 
-        # 🔹 Formatear fecha y hora local
-# Usar la fecha y hora actual local
+        # Mostrar fecha/hora local
         zona_local = pytz.timezone("America/Mexico_City")
         fecha_hora_local = datetime.now(zona_local).strftime("%d/%m/%Y %H:%M:%S")
         contenido.add_widget(Label(text=f"Fecha: {fecha_hora_local.split(' ')[0]}"))
         contenido.add_widget(Label(text=f"Hora: {fecha_hora_local.split(' ')[1]}"))
-
 
         contenido.add_widget(Label(text=f"Total del día: ${resumen['total']}"))
         contenido.add_widget(Label(text="📸 Toma captura si es necesario"))
@@ -196,21 +192,6 @@ class CorteDiario(Screen):
         popup = Popup(title=titulo, content=contenido, size_hint=(0.6, 0.4))
         btn_cerrar.bind(on_release=popup.dismiss)
         popup.open()
-
-    # 🔹 Función para convertir UTC a hora local
-    def formatear_fecha(self, fecha_str):
-        """
-        Devuelve la fecha y hora tal como está en el JSON,
-        sin hacer conversiones de zona horaria.
-        """
-        try:
-            # Solo intentar formatear bonito: dd/mm/yyyy HH:MM:SS
-            fecha = datetime.strptime(fecha_str, "%Y-%m-%d %H:%M:%S")
-            return fecha.strftime("%d/%m/%Y %H:%M:%S")
-        except Exception:
-            # Si falla, devolver tal cual
-            return fecha_str
-
 
     def volver(self, instance):
         self.manager.current = "pantalla_principal"

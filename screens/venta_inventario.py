@@ -130,9 +130,13 @@ class VentaInventario(Screen):
                 print("Error API actualizar producto:", e)
 
     def confirmar_venta(self, instance):
-        """Confirma venta: descuenta inventario y guarda venta en API como lista de productos"""
+        """Confirma venta: descuenta inventario y guarda venta en API como objeto JSON"""
         if not self.tienda_id:
             self.mostrar_mensaje("Tienda no definida")
+            return
+
+        if not self.carrito:
+            self.mostrar_mensaje("No hay productos en el carrito")
             return
 
         # Descontar piezas localmente
@@ -146,24 +150,27 @@ class VentaInventario(Screen):
         # Actualizar inventario en API
         self.guardar_productos_api()
 
-        # Armar lista de productos para enviar directamente
-        lista_venta = [
-            {
-                "producto": item["producto"],  
-                "precio": float(item["precio"]),
-                "cantidad": int(item["cantidad"])
-            }
-            for item in self.carrito
-        ]
+        # Armar diccionario de venta para API
+        datos_venta = {
+            "usuario": self.nombre_usuario,
+            "fuera_inventario": False,  # o True si quieres que no descuente inventario
+            "productos": [
+                {
+                    "producto": item["producto"],
+                    "precio": float(item["precio"]),
+                    "cantidad": int(item["cantidad"])
+                }
+                for item in self.carrito
+            ]
+        }
 
         try:
-            print("Datos a enviar a API (lista):", json.dumps(lista_venta, indent=2))
+            print("Datos a enviar a API (diccionario):", json.dumps(datos_venta, indent=2))
 
-            # Enviar la venta como lista JSON
+            # Enviar la venta como JSON
             resp = requests.post(
                 f"{API_URL}/{self.tienda_id}/ventas/",
-                params={"usuario": self.nombre_usuario, "fuera_inventario": False},  # si quieres mantener este parámetro
-                json=lista_venta
+                json=datos_venta
             )
 
             if resp.status_code not in (200, 201):

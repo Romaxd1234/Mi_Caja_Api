@@ -57,6 +57,10 @@ zstandard==0.23.0
 uvicorn[standard]==0.23.2
 fastapi>=0.101.0
 python-multipart>=0.0.6
+databases[postgresql]
+asyncpg
+SQLAlchemy
+
 
 # PyInstaller compatible con Python 3.10+ (solo si lo necesitas en local)
 # pyinstaller==6.15.0

@@ -216,19 +216,16 @@ class VentanaPrincipal(Screen):
 
             import requests
 
-            # Query parameters obligatorios
-            params = {
+            # 🔹 Payload correcto según la API
+            payload = {
                 "usuario": self.nombre_usuario,
-                "fuera_inventario": True
+                "fuera_inventario": True,
+                "productos": [{"producto": p, "precio": pr, "cantidad": 1} for p, pr in self.ventas_temporales]
             }
-
-            # Body como lista de productos
-            payload = [{"producto": p, "precio": pr, "cantidad": 1} for p, pr in self.ventas_temporales]
 
             try:
                 respuesta = requests.post(
                     f"https://mi-caja-api.onrender.com/tiendas/{self.tienda_id}/ventas/",
-                    params=params,
                     json=payload
                 )
 
@@ -238,7 +235,7 @@ class VentanaPrincipal(Screen):
                     self.mostrar_popup_confirmacion()
 
                 elif respuesta.status_code == 422:
-                    # Muestra el detalle de errores de validación que devuelve FastAPI
+                    # Muestra detalle de errores de validación
                     errores = respuesta.json().get("detail", [])
                     mensaje = "\n".join([f"{e.get('loc', '')}: {e.get('msg', '')}" for e in errores])
                     self.mostrar_popup("Error de Validación", mensaje or "Datos no válidos")
@@ -248,6 +245,7 @@ class VentanaPrincipal(Screen):
 
             except requests.exceptions.RequestException as e:
                 self.mostrar_popup("Error", f"No se pudo conectar al servidor:\n{e}")
+
 
         # Asignar las funciones a los botones
         btn_agregar_producto.bind(on_release=agregar_producto)
@@ -395,33 +393,32 @@ class VentanaPrincipal(Screen):
 
     def revisar_prestamo_pendiente(self):
         """
-        Revisa si el empleado tiene un préstamo pendiente.
+        Revisa si el empleado tiene un préstamo pendiente desde la API.
         Solo aplica si el login es de tipo empleado.
         """
-        if self.origen_login != "empleado":
-            return  # Solo empleados
+        if self.origen_login != "empleado" or not self.tienda_id:
+            return  # Solo empleados con tienda asignada
 
-        config_path = "data/config.json"
-        if not os.path.exists(config_path):
-            return
+        import requests
+        try:
+            url = f"https://mi-caja-api.onrender.com/tiendas/{self.tienda_id}/empleados/"
+            respuesta = requests.get(url)
+            if respuesta.status_code != 200:
+                print(f"No se pudo obtener empleados: {respuesta.status_code}")
+                return
 
-        store_config = JsonStore(config_path)
-        if not store_config.exists("actual"):
-            return
+            empleados = respuesta.json()
+            for emp in empleados:
+                if emp.get("nombre") == self.nombre_usuario:
+                    prestamo = emp.get("prestamo", {})
+                    if prestamo.get("pendiente", False):
+                        mensaje = prestamo.get("mensaje", "Tienes un préstamo pendiente.")
+                        self.mostrar_popup_prestamo(mensaje)
+                    break
 
-        ruta_tienda = store_config.get("actual").get("archivo")
-        if not ruta_tienda or not os.path.exists(ruta_tienda):
-            return
+        except requests.exceptions.RequestException as e:
+            print("Error al consultar API para préstamo:", e)
 
-        store = JsonStore(ruta_tienda)
-        empleados = store.get("empleados").get("lista", []) if store.exists("empleados") else []
-
-        for emp in empleados:
-            if emp.get("nombre") == self.nombre_usuario:
-                prestamo = emp.get("prestamo", {})
-                if prestamo.get("pendiente", False):
-                    self.mostrar_popup_prestamo(prestamo.get("mensaje", ""))
-                break
 
     def mostrar_popup_confirmacion(self):
         contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
@@ -468,27 +465,30 @@ class VentanaPrincipal(Screen):
 
     # --- NUEVO MÉTODO para marcar préstamo como atendido ---
     def marcar_prestamo_como_atendido(self):
-        config_path = "data/config.json"
-        if not os.path.exists(config_path):
+        """Marca el préstamo del empleado como atendido en la API."""
+        if not self.tienda_id:
             return
 
-        store_config = JsonStore(config_path)
-        if not store_config.exists("actual"):
-            return
+        import requests
+        try:
+            url = f"https://mi-caja-api.onrender.com/tiendas/{self.tienda_id}/empleados/"
+            resp = requests.get(url)
+            resp.raise_for_status()
+            empleados = resp.json()
 
-        ruta_tienda = store_config.get("actual")["archivo"]
-        if not os.path.exists(ruta_tienda):
-            return
+            for emp in empleados:
+                if emp.get("nombre") == self.nombre_usuario and emp.get("prestamo", {}).get("pendiente"):
+                    emp_id = emp.get("id")
+                    # PATCH para marcar el préstamo como atendido
+                    patch_url = f"https://mi-caja-api.onrender.com/tiendas/{self.tienda_id}/empleados/{emp_id}"
+                    payload = {"prestamo": {"pendiente": False}}
+                    requests.patch(patch_url, json=payload)
+                    break
 
-        store = JsonStore(ruta_tienda)
-        if not store.exists("empleados"):
-            return
+        except Exception as e:
+            print("Error al marcar préstamo como atendido en API:", e)
 
-        empleados = store.get("empleados").get("lista", [])
-        for emp in empleados:
-            if emp.get("nombre") == self.nombre_usuario:
-                if "prestamo" in emp:
-                    emp["prestamo"]["pendiente"] = False
-                break
-
-        store.put("empleados", lista=empleados)
+    def on_enter(self):
+        # Solo empleados
+        if self.origen_login == "empleado":
+            self.revisar_prestamo_pendiente()

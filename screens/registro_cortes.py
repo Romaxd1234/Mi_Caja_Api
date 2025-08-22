@@ -61,8 +61,13 @@ class RegistroCortes(Screen):
             resp.raise_for_status()
             tienda = resp.json()
 
-            # Extraer todos los cortes diarios de todos los bloques
             cortes_diarios = []
+
+            # 🔹 Cortes diarios sueltos
+            for corte in tienda.get("cortes", {}).get("diarios", []):
+                cortes_diarios.append(corte)
+
+            # 🔹 Cortes diarios dentro de bloques semanales
             for bloque in tienda.get("cortes", {}).get("semanales", []):
                 for corte_diario in bloque.get("cortes_diarios", []):
                     cortes_diarios.append(corte_diario)
@@ -71,7 +76,7 @@ class RegistroCortes(Screen):
 
         except Exception as e:
             print("Error al obtener cortes:", e)
-            return []
+        return []
 
     # ------------------- Mostrar lista de cortes -------------------
     def mostrar_lista_cortes(self, *args):
