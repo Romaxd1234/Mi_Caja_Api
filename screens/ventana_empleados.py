@@ -4,59 +4,66 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
-from kivy.uix.popup import Popup
 from kivy.uix.spinner import Spinner
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.image import Image
+from kivy.uix.popup import Popup
+from kivy.resources import resource_add_path
+from kivy.graphics import Rectangle
+import os
 import requests
 
 class VentanaEmpleados(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        # Raíz FloatLayout
         self.layout = FloatLayout()
         self.add_widget(self.layout)
 
-        from kivy.uix.image import Image
-        fondo = Image(source=r'C:\Users\USER\Documents\APP\APP\assets\fondo.png',
-                      allow_stretch=True, keep_ratio=False,
-                      size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
-        self.layout.add_widget(fondo)
+        # Fondo que ocupa toda la pantalla
+# Fondo que ocupa toda la pantalla
+        with self.layout.canvas.before:
+            self.fondo_rect = Rectangle(source="fondo.png", pos=self.layout.pos, size=self.layout.size)
+        self.layout.bind(size=self._update_rect, pos=self._update_rect)
 
-        self.contenedor = BoxLayout(orientation='vertical', padding=20, spacing=10,
+        # Contenedor vertical para todos los elementos
+        self.contenedor = BoxLayout(orientation='vertical', spacing=10, padding=10,
                                     size_hint=(0.9, 0.9), pos_hint={'center_x': 0.5, 'center_y': 0.5})
-        self.layout.add_widget(self.contenedor)
+        self.layout.add_widget(self.contenedor)  # luego el contenedor
 
-        # Botones arriba: agregar, editar, eliminar, notas, préstamos
-        botones_layout = BoxLayout(size_hint=(1, None), height=40, spacing=10)
+        # --- Botones superiores ---
+        botones_layout = BoxLayout(size_hint=(1, None), height=40, spacing=5)
         self.contenedor.add_widget(botones_layout)
-
-        self.btn_agregar = Button(text="Agregar Empleado")
-        self.btn_editar = Button(text="Editar Empleado")
-        self.btn_eliminar = Button(text="Eliminar Empleado")
-        self.btn_prestamos = Button(text="Préstamos")
+        self.btn_agregar = Button(text="Agregar")
+        self.btn_editar = Button(text="Editar")
+        self.btn_eliminar = Button(text="Eliminar")
         self.btn_notas = Button(text="Notas")
+        self.btn_prestamos = Button(text="Prést")
+        for btn in [self.btn_agregar, self.btn_editar, self.btn_eliminar, self.btn_notas, self.btn_prestamos]:
+            botones_layout.add_widget(btn)
 
-        botones_layout.add_widget(self.btn_agregar)
-        botones_layout.add_widget(self.btn_editar)
-        botones_layout.add_widget(self.btn_eliminar)
-        botones_layout.add_widget(self.btn_prestamos)
-        botones_layout.add_widget(self.btn_notas)
-
-        # Selector de empleados
-        seleccion_layout = BoxLayout(size_hint=(1, None), height=40, spacing=10)
-        self.contenedor.add_widget(seleccion_layout)
-        seleccion_layout.add_widget(Label(text="Empleado:", size_hint=(None, 1), width=80))
-        self.spinner_empleados = Spinner(text="Selecciona empleado", values=[], size_hint=(1, 1))
+        # --- Selector de empleado ---
+        seleccion_layout = BoxLayout(size_hint=(1, None), height=40, spacing=5)
+        seleccion_layout.add_widget(Label(text="Empleado:", size_hint_x=None, width=80))
+        self.spinner_empleados = Spinner(text="Selecciona empleado", values=[])
         seleccion_layout.add_widget(self.spinner_empleados)
+        self.contenedor.add_widget(seleccion_layout)
 
-        # Área para mostrar info del empleado
-        self.empleados_layout = BoxLayout(orientation='vertical', spacing=10)
-        self.contenedor.add_widget(self.empleados_layout)
+        # --- Scroll info empleado ---
+        self.info_scroll = ScrollView(size_hint=(1, 1))
+        self.empleados_layout = BoxLayout(orientation='vertical', spacing=5, size_hint_y=None)
+        self.empleados_layout.bind(minimum_height=self.empleados_layout.setter('height'))
+        self.info_scroll.add_widget(self.empleados_layout)
+        self.contenedor.add_widget(self.info_scroll)
 
-        # Botón Volver abajo izquierda
-        self.btn_volver = Button(text="Volver", size_hint=(0.2, None), height=40,
-                                 pos_hint={'x': 0.02, 'y': 0.02})
-        self.layout.add_widget(self.btn_volver)
+        # --- Footer con Volver ---
+        footer = BoxLayout(size_hint=(1, None), height=50, spacing=5)
+        self.btn_volver = Button(text="Volver", size_hint_x=None, width=100)
+        footer.add_widget(self.btn_volver)
+        footer.add_widget(Label())  # espacio vacío
+        self.contenedor.add_widget(footer)
 
-        # Bindings
+        # --- Bindings ---
         self.btn_volver.bind(on_release=self.volver)
         self.btn_notas.bind(on_release=self.abrir_popup_notas)
         self.btn_agregar.bind(on_release=self.abrir_popup_agregar)
@@ -65,10 +72,14 @@ class VentanaEmpleados(Screen):
         self.btn_prestamos.bind(on_release=self.abrir_popup_prestamo)
         self.spinner_empleados.bind(text=self.mostrar_info_empleado)
 
-        # Variables para datos
+        # Variables
         self.tienda_id = None
         self.api_base = "https://mi-caja-api.onrender.com/tiendas"
         self.empleados = []
+
+    def _update_rect(self, *args):
+        self.fondo_rect.pos = self.layout.pos
+        self.fondo_rect.size = self.layout.size
 
     # -----------------------------
     # Asignar tienda

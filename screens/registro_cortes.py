@@ -1,15 +1,17 @@
 from kivy.uix.screenmanager import Screen
 from kivy.uix.relativelayout import RelativeLayout
-from kivy.uix.image import Image
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.popup import Popup
+from kivy.graphics import Rectangle
+from kivy.resources import resource_add_path
+import os
 import requests
 
-API_BASE = "https://mi-caja-api.onrender.com/tiendas"  # Asegúrate que esté bien
+API_BASE = "https://mi-caja-api.onrender.com/tiendas"
 
 class RegistroCortes(Screen):
     def __init__(self, **kwargs):
@@ -17,12 +19,13 @@ class RegistroCortes(Screen):
         self.root_layout = RelativeLayout()
         self.add_widget(self.root_layout)
 
-        # Fondo
-        self.fondo = Image(
-            source=r"C:\Users\USER\Documents\APP\APP\assets\fondo.png",
-            allow_stretch=True, keep_ratio=False
-        )
-        self.root_layout.add_widget(self.fondo)
+        # Fondo con canvas
+        ruta_assets = os.path.join(os.path.dirname(__file__), "assets")
+        resource_add_path(ruta_assets)
+
+        with self.root_layout.canvas.before:
+            self.fondo_rect = Rectangle(source="fondo.png", pos=self.root_layout.pos, size=self.root_layout.size)
+        self.root_layout.bind(size=self._update_rect, pos=self._update_rect)
 
         # Contenedor principal
         self.main_layout = BoxLayout(orientation="vertical", padding=10, spacing=5)
@@ -30,14 +33,21 @@ class RegistroCortes(Screen):
 
         # Botón para volver
         self.btn_volver = Button(
-            text="↩ Volver", size_hint=(0.15, 0.08), pos_hint={"x": 0, "y": 0}
+            text="↩ Volver",
+            size_hint=(0.15, 0.08),
+            pos_hint={"x": 0, "y": 0}
         )
         self.btn_volver.bind(on_release=self.on_volver)
         self.root_layout.add_widget(self.btn_volver)
 
+        # Variables
         self.estado = "lista"
         self.corte_seleccionado = None
         self.tienda_id = None
+
+    def _update_rect(self, *args):
+        self.fondo_rect.pos = self.root_layout.pos
+        self.fondo_rect.size = self.root_layout.size
 
     # ------------------- Configuración -------------------
     def set_tienda_id(self, tienda_id):
@@ -83,7 +93,7 @@ class RegistroCortes(Screen):
         self.estado = "lista"
         self.corte_seleccionado = None
         self.main_layout.clear_widgets()
-        self.btn_volver.text = "↩ Volver a Principal"
+        self.btn_volver.text = "Volver"
         self.btn_volver.unbind(on_release=self.on_volver)
         self.btn_volver.bind(on_release=self.volver_a_principal)
 
@@ -115,7 +125,7 @@ class RegistroCortes(Screen):
         self.estado = "detalle"
         self.corte_seleccionado = corte
         self.main_layout.clear_widgets()
-        self.btn_volver.text = "↩ Volver a Lista"
+        self.btn_volver.text = "Volver"
         self.btn_volver.unbind(on_release=self.volver_a_principal)
         self.btn_volver.bind(on_release=self.mostrar_lista_cortes)
 

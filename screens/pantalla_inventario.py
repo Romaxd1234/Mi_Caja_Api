@@ -9,6 +9,9 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.widget import Widget
 from kivy.uix.image import Image
 from kivy.properties import ListProperty
+from kivy.resources import resource_add_path
+from kivy.graphics import Rectangle
+import os
 import requests
 
 API_URL = "https://mi-caja-api.onrender.com/tiendas"
@@ -20,19 +23,16 @@ class VentanaInventario(Screen):
         super(VentanaInventario, self).__init__(**kwargs)
         self.producto_seleccionado = None
 
-        # Layout y fondo
-        self.layout = FloatLayout()
-        self.add_widget(self.layout)
+        # Assets
+        ruta_assets = os.path.join(os.path.dirname(__file__), "assets")
+        resource_add_path(ruta_assets)
 
-        fondo = Image(
-            source=r'C:\Users\USER\Documents\APP\APP\assets\fondo.png',
-            allow_stretch=True,
-            keep_ratio=False,
-            size_hint=(1, 1),
-            pos_hint={'x': 0, 'y': 0}
-        )
-        self.layout.add_widget(fondo)
+        # Fondo con canvas
+        with self.canvas.before:
+            self.fondo_rect = Rectangle(source="fondo.png", pos=self.pos, size=self.size)
+        self.bind(size=self._update_rect, pos=self._update_rect)
 
+        # Layout principal
         self.layout_principal = BoxLayout(orientation='vertical', spacing=10, padding=10)
         self.add_widget(self.layout_principal)
 
@@ -85,6 +85,10 @@ class VentanaInventario(Screen):
         self.layout_principal.add_widget(layout_inferior)
 
     # --------------------- Funciones ---------------------
+    def _update_rect(self, *args):
+        self.fondo_rect.pos = self.pos
+        self.fondo_rect.size = self.size
+        
     def set_tienda_api(self, tienda):
         """Recibe la tienda seleccionada desde AbrirTiendaScreen"""
         self.tienda_actual = tienda

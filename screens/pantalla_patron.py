@@ -6,6 +6,9 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.togglebutton import ToggleButton
 from kivy.uix.button import Button
 from kivy.uix.image import Image
+from kivy.graphics import Rectangle, Color
+from kivy.resources import resource_add_path
+import os
 import requests
 
 API_URL = "https://mi-caja-api.onrender.com/tiendas"
@@ -14,18 +17,17 @@ class PantallaPatronScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # Layout principal con fondo
+        # Layout principal
         self.layout_principal = FloatLayout()
+        self.add_widget(self.layout_principal)
 
-        # Imagen de fondo
-        fondo = Image(
-            source=r'C:\Users\USER\Documents\APP\APP\assets\fondo.png',
-            allow_stretch=True,
-            keep_ratio=False,
-            size_hint=(1, 1),
-            pos_hint={'x': 0, 'y': 0}
-        )
-        self.layout_principal.add_widget(fondo)
+        # Canvas para fondo
+        ruta_assets = os.path.join(os.path.dirname(__file__), "assets")
+        resource_add_path(ruta_assets)
+
+        with self.layout_principal.canvas.before:
+            self.fondo_rect = Rectangle(source="fondo.png", pos=self.pos, size=self.size)
+        self.layout_principal.bind(size=self._update_rect, pos=self._update_rect)
 
         # Layout del formulario
         self.layout = BoxLayout(
@@ -85,11 +87,14 @@ class PantallaPatronScreen(Screen):
         self.btn_volver.bind(on_release=self.volver)
         self.layout_principal.add_widget(self.btn_volver)
 
-        self.add_widget(self.layout_principal)
-
         # Variables para trabajar con API
         self.tienda_id = None
         self.patron = None
+
+    # ── Canvas update ──
+    def _update_rect(self, *args):
+        self.fondo_rect.pos = self.layout_principal.pos
+        self.fondo_rect.size = self.layout_principal.size
 
     # ── Funciones de UI ──
     def toggle_password(self, instance):
@@ -100,7 +105,6 @@ class PantallaPatronScreen(Screen):
 
     # ── Setear datos desde API ──
     def set_datos_patron_api(self, tienda_id, patron=None):
-        """Recibe datos de la API y actualiza la UI."""
         self.tienda_id = tienda_id
         self.patron = patron
 
@@ -119,7 +123,7 @@ class PantallaPatronScreen(Screen):
             self.pass_confirm_input.disabled = False
             self.btn_registrar.disabled = False
             self.msg.text = ""
-    
+
     # ── Registrar patrón ──
     def registrar_patron(self, instance):
         nombre = self.nombre_input.text.strip()
@@ -148,15 +152,13 @@ class PantallaPatronScreen(Screen):
                 f"{API_URL}/{self.tienda_id}/patron/",
                 params={"nombre": nombre, "password": contra}
             )
-            response.raise_for_status()  # Lanza error si no es 2xx
-
+            response.raise_for_status()
             self.msg.color = (0, 1, 0, 1)
             self.msg.text = "Patrón registrado correctamente."
             self.pass_input.disabled = True
             self.pass_confirm_input.disabled = True
             self.nombre_input.disabled = True
             self.btn_registrar.disabled = True
-
         except requests.RequestException as e:
             print(f"Error al registrar patrón: {e}")
             try:
@@ -165,7 +167,6 @@ class PantallaPatronScreen(Screen):
             except:
                 self.msg.text = f"Error al conectar con la API: {e}"
             self.msg.color = (1, 0, 0, 1)
-
 
     def volver(self, instance):
         self.manager.current = "seleccion_rol"

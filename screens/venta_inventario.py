@@ -10,7 +10,10 @@ from kivy.uix.popup import Popup
 from kivy.uix.label import Label
 from kivy.properties import ListProperty, StringProperty
 from datetime import datetime
-from rapidfuzz import process
+from fuzzywuzzy import process
+from kivy.graphics import Rectangle
+import os
+from kivy.resources import resource_add_path
 import json
 import requests
 
@@ -29,16 +32,13 @@ class VentaInventario(Screen):
         self.nombre_usuario = ""
 
         # Layout base con fondo
-        self.layout = FloatLayout()
+
+        self.layout = FloatLayout()  # <-- se crea primero
         self.add_widget(self.layout)
-        fondo = Image(
-            source=r'C:\Users\USER\Documents\APP\APP\assets\fondo.png',
-            allow_stretch=True,
-            keep_ratio=False,
-            size_hint=(1,1),
-            pos_hint={'x':0, 'y':0}
-        )
-        self.layout.add_widget(fondo)
+
+        with self.layout.canvas.before:
+            self.fondo_rect = Rectangle(source="fondo.png", pos=self.layout.pos, size=self.layout.size)
+        self.layout.bind(size=self._update_rect, pos=self._update_rect)
 
         # Layout principal vertical encima
         self.layout_principal = BoxLayout(orientation='vertical', spacing=10, padding=10)
@@ -84,6 +84,10 @@ class VentaInventario(Screen):
         layout_botones_final.add_widget(self.boton_volver)
         layout_botones_final.add_widget(self.boton_finalizar)
         self.layout_principal.add_widget(layout_botones_final)
+
+    def _update_rect(self, *args):
+        self.fondo_rect.pos = self.layout.pos
+        self.fondo_rect.size = self.layout.size
 
     # --------------------- Funciones API ---------------------
     def set_tienda_id(self, tienda_id):
@@ -203,9 +207,14 @@ class VentaInventario(Screen):
 
     def buscar_producto_clave(self, texto_busqueda):
         productos_nombres = [prod['producto'] for prod in self.productos]
-        resultados = process.extract(texto_busqueda, productos_nombres, limit=10, score_cutoff=60)
-        indices = [r[2] for r in resultados]
+        # Extraer resultados sin score_cutoff
+        resultados = process.extract(texto_busqueda, productos_nombres, limit=10)
+        # Filtrar manualmente los que tengan score >= 60
+        resultados = [r for r in resultados if r[1] >= 60]
+        # Conseguir índices en la lista original
+        indices = [productos_nombres.index(r[0]) for r in resultados]
         return [self.productos[i] for i in indices]
+
 
     def mostrar_resultados(self, lista_productos):
         self.grid_resultados.clear_widgets()

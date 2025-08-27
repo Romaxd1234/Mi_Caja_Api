@@ -1,62 +1,54 @@
 from kivy.uix.screenmanager import Screen
 from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.image import Image
-from kivy.uix.button import Button
 from kivy.uix.label import Label
+from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.popup import Popup
-from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
-from kivy.properties import StringProperty
+from kivy.resources import resource_add_path
 from kivy.clock import Clock
-from kivy.storage.jsonstore import JsonStore
-import json
+from kivy.graphics import Rectangle
 import os
+import requests
 from datetime import datetime
+
+API_URL = "https://mi-caja-api.onrender.com/tiendas"
 
 class VentanaPrincipal(Screen):
     def __init__(self, **kwargs):
-        super(VentanaPrincipal, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.nombre_usuario = ""
-
-        self.origen_login = "patron"  # por defecto
-        self.nombre_usuario = ""
-        self.inicializado = False  # para evitar múltiples cargas
-
+        self.origen_login = "patron"
+        self.inicializado = False
         self.layout = FloatLayout()
         self.add_widget(self.layout)
 
     def configurar_sesion(self, origen, nombre, tienda_id=None):
-        self.origen_login = origen 
+        self.origen_login = origen
         self.nombre_usuario = nombre
-        self.tienda_id = tienda_id 
+        self.tienda_id = tienda_id
 
     def on_pre_enter(self):
         if self.inicializado:
-            return  # Solo cargar UI una vez
-
+            return
         self.inicializado = True
         self.layout.clear_widgets()
 
         # ------------------------
-        # Fondo
-        self.fondo = Image(
-            source=r'C:\Users\USER\Documents\APP\APP\assets\fondo.png',
-            allow_stretch=True,
-            keep_ratio=False,
-            size_hint=(1, 1),
-            pos_hint={'x': 0, 'y': 0}
-        )
-        self.layout.add_widget(self.fondo)
+        # Fondo con canvas
+        ruta_assets = os.path.join(os.path.dirname(__file__), "assets")
+        resource_add_path(ruta_assets)
+
+        with self.layout.canvas.before:
+            self.fondo_rect = Rectangle(source="fondo.png", pos=self.layout.pos, size=self.layout.size)
+        self.layout.bind(size=self._update_rect, pos=self._update_rect)
 
         # ------------------------
         # Nombre de la tienda
         self.nombre_tienda = "Tienda"
         if hasattr(self, "tienda_id") and self.tienda_id:
             try:
-                import requests
-                url = f"https://mi-caja-api.onrender.com/tiendas/{self.tienda_id}"
+                url = f"{API_URL}/{self.tienda_id}"
                 respuesta = requests.get(url)
                 if respuesta.status_code == 200:
                     datos = respuesta.json()
@@ -66,9 +58,10 @@ class VentanaPrincipal(Screen):
 
         self.label_tienda = Label(
             text=f"[b]{self.nombre_tienda}[/b]",
-            font_size=24,
-            size_hint=(.3, .1),
-            pos_hint={"right": 0.98, "top": 0.98},
+            font_size='20sp',
+            size_hint=(.9, None),
+            height=40,
+            pos_hint={"x": 0.05, "top": 0.98},
             color=(0, 0, 0, 1),
             markup=True
         )
@@ -79,9 +72,10 @@ class VentanaPrincipal(Screen):
         if self.origen_login == "empleado" and self.nombre_usuario:
             self.label_usuario = Label(
                 text=f"Hola, {self.nombre_usuario}",
-                font_size=18,
-                size_hint=(.3, .05),
-                pos_hint={"right": 0.98, "top": 0.90},
+                font_size='16sp',
+                size_hint=(.9, None),
+                height=30,
+                pos_hint={"x": 0.05, "top": 0.90},
                 color=(0, 0, 0, 1)
             )
             self.layout.add_widget(self.label_usuario)
@@ -90,57 +84,100 @@ class VentanaPrincipal(Screen):
         # Reloj
         self.label_hora = Label(
             text="",
-            font_size=20,
-            size_hint=(.3, .1),
-            pos_hint={"right": 0.98, "y": 0.02},
+            font_size='18sp',
+            size_hint=(.9, None),
+            height=30,
+            pos_hint={"x": 0.05, "y": 0.02},
             color=(1, 1, 1, 1)
         )
         self.layout.add_widget(self.label_hora)
         Clock.schedule_interval(self.actualizar_hora, 1)
 
         # ------------------------
-        # Botones principales
+        # Botones principales con ScrollView
+        scroll_layout = ScrollView(size_hint=(0.25, 0.75), pos_hint={"x": 0.02, "top": 0.85})
+        grid_botones = GridLayout(cols=1, spacing=10, size_hint_y=None)
+        grid_botones.bind(minimum_height=grid_botones.setter('height'))
+
         botones_info = [
-            ("Venta", self.abrir_venta, 0.95),
-            ("Venta Inventario", self.abrir_venta_con_inventario, 0.82),
-            ("Inventario", self.ir_a_inventario, 0.69),
-            ("Corte", self.abrir_popup_corte, 0.56),
-            ("Registro de Cortes", self.ir_a_registro_cortes, 0.43)
+            ("Venta", self.abrir_venta),
+            ("Venta\nInventario", self.abrir_venta_con_inventario),
+            ("Inventario", self.ir_a_inventario),
+            ("Corte", self.abrir_popup_corte),
+            ("Registro\nde Cortes", self.ir_a_registro_cortes)
         ]
 
-        for texto, callback, top in botones_info:
-            btn = Button(text=texto, size_hint=(.2, .1), pos_hint={"x": 0.02, "top": top})
+        for texto, callback in botones_info:
+            btn = Button(
+                text=texto,
+                size_hint=(1, None),
+                height=50,
+                font_size='14sp',
+                text_size=(None, 50),
+                halign='center',
+                valign='middle'
+            )
             btn.bind(on_release=callback)
-            self.layout.add_widget(btn)
+            grid_botones.add_widget(btn)
+
+        btn_cerrar_sesion = Button(
+            text="Cerrar Sesión",
+            size_hint=(1, None),
+            height=50,
+            font_size='14sp',
+            text_size=(None, 50),
+            halign='center',
+            valign='middle',
+            background_color=(1, 0, 0, 1)
+        )
+        btn_cerrar_sesion.bind(on_release=self.cerrar_sesion)
+        grid_botones.add_widget(btn_cerrar_sesion)
 
         # Registro Semanal solo para patrón
         if self.origen_login == "patron":
-            self.boton_registro_semanal = Button(
-                text="Registro Semanal",
-                size_hint=(.2, .1),
-                pos_hint={"x": 0.02, "top": 0.30}
+            btn_semana = Button(
+                text="Registro\nSemanal",
+                size_hint=(1, None),
+                height=50,
+                font_size='14sp',
+                text_size=(None, 50),
+                halign='center',
+                valign='middle'
             )
-            self.boton_registro_semanal.bind(on_release=self.ir_a_registro_semanal)
-            self.layout.add_widget(self.boton_registro_semanal)
+            btn_semana.bind(on_release=self.ir_a_registro_semanal)
+            grid_botones.add_widget(btn_semana)
 
         # Botón Empleados solo si NO es empleado
         if self.origen_login != "empleado":
-            self.boton_empleados = Button(
+            btn_emp = Button(
                 text="Empleados",
-                size_hint=(.2, .1),
-                pos_hint={"x": 0.02, "y": 0.02}
+                size_hint=(1, None),
+                height=50,
+                font_size='14sp',
+                text_size=(None, 50),
+                halign='center',
+                valign='middle'
             )
-            self.boton_empleados.bind(on_release=self.gestionar_empleados)
-            self.layout.add_widget(self.boton_empleados)
+            btn_emp.bind(on_release=self.gestionar_empleados)
+            grid_botones.add_widget(btn_emp)
+
+        scroll_layout.add_widget(grid_botones)
+        self.layout.add_widget(scroll_layout)
 
         # ------------------------
         # Revisar préstamo pendiente
         self.revisar_prestamo_pendiente()
 
+    def _update_rect(self, *args):
+        self.fondo_rect.pos = self.layout.pos
+        self.fondo_rect.size = self.layout.size
+
     def actualizar_hora(self, dt):
         ahora = datetime.now()
         self.label_hora.text = ahora.strftime("%H:%M:%S")
 
+    # ------------------------
+    # Métodos de popups adaptados a tamaño de pantalla
     def mostrar_popup(self, titulo, mensaje):
         contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
         contenido.add_widget(Label(text=mensaje))
@@ -148,10 +185,49 @@ class VentanaPrincipal(Screen):
         contenido.add_widget(btn_cerrar)
 
         popup = Popup(title=titulo, content=contenido,
-                    size_hint=(0.6, 0.4),
-                    auto_dismiss=False)
+                      size_hint=(0.9, 0.6),
+                      auto_dismiss=False)
         btn_cerrar.bind(on_release=popup.dismiss)
         popup.open()
+
+    def cerrar_sesion(self, instance):
+        # Limpiar variables de sesión
+        self.nombre_usuario = ""
+        self.tienda_id = None
+        self.origen_login = ""
+
+        # Mostrar popup primero
+        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        contenido.add_widget(Label(text="Has cerrado sesión correctamente."))
+        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=40)
+        contenido.add_widget(btn_cerrar)
+
+        popup = Popup(title="Sesión cerrada", content=contenido,
+                    size_hint=(0.6, 0.4), auto_dismiss=False)
+
+        def cerrar_popup(instance_btn):
+            popup.dismiss()
+            # Cambiar a login después de cerrar popup
+            self.manager.current = 'seleccion_rol'
+
+        btn_cerrar.bind(on_release=cerrar_popup)
+        popup.open()
+
+
+
+    def mostrar_popup_confirmacion(self):
+        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        contenido.add_widget(Label(text="Venta registrada correctamente."))
+
+        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=40)
+        contenido.add_widget(btn_cerrar)
+
+        popup = Popup(title='Confirmación', content=contenido,
+                      size_hint=(0.9, 0.5),
+                      auto_dismiss=False)
+        btn_cerrar.bind(on_release=popup.dismiss)
+        popup.open()
+
 
     def abrir_venta(self, instance):
         contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)

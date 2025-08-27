@@ -3,24 +3,25 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
-from kivy.uix.image import Image
+from kivy.resources import resource_add_path
 from kivy.uix.popup import Popup
-from datetime import datetime
+from kivy.graphics import Rectangle
 import requests
+import os
+from datetime import datetime
 
 class LoginPatronScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # Fondo
-        self.background = Image(
-            source=r'C:\Users\USER\Documents\APP\APP\assets\fondo.png',
-            allow_stretch=True,
-            keep_ratio=False,
-            size_hint=(1, 1),
-            pos_hint={'center_x': 0.5, 'center_y': 0.5}
-        )
-        self.add_widget(self.background)
+        # Ruta de assets
+        ruta_assets = os.path.join(os.path.dirname(__file__), "assets")
+        resource_add_path(ruta_assets)
+
+        # Fondo con canvas
+        with self.canvas.before:
+            self.fondo_rect = Rectangle(source="fondo.png", pos=self.pos, size=self.size)
+        self.bind(size=self._update_rect, pos=self._update_rect)
 
         # Layout principal
         self.layout = BoxLayout(
@@ -60,6 +61,10 @@ class LoginPatronScreen(Screen):
         self.nombre_patron = ""
         self.tienda_id = None
 
+    def _update_rect(self, *args):
+        self.fondo_rect.pos = self.pos
+        self.fondo_rect.size = self.size
+
     def set_datos_patron_api(self, tienda_id, patron=None):
         self.tienda_id = tienda_id
 
@@ -69,7 +74,6 @@ class LoginPatronScreen(Screen):
         else:
             # Hacer GET a la API
             try:
-                import requests
                 response = requests.get(f"https://mi-caja-api.onrender.com/tiendas/{tienda_id}/patron/")
                 response.raise_for_status()
                 patron_api = response.json()

@@ -4,11 +4,12 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.image import Image
 from kivy.uix.relativelayout import RelativeLayout
 from kivy.properties import StringProperty
+from kivy.resources import resource_add_path
 from kivy.clock import Clock
-from kivy.uix.popup import Popup
+from kivy.graphics import Rectangle
+import os
 import pytz
 import requests
 from datetime import datetime
@@ -21,26 +22,34 @@ class CorteDiario(Screen):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+        resource_add_path(os.path.join(os.path.dirname(__file__), "assets"))
+
+        # Fondo con canvas
+        with self.canvas.before:
+            self.fondo_rect = Rectangle(source="fondo.png", pos=self.pos, size=self.size)
+        self.bind(size=self._update_rect, pos=self._update_rect)
+
         Clock.schedule_once(self.crear_interfaz)
+
+    def _update_rect(self, *args):
+        self.fondo_rect.pos = self.pos
+        self.fondo_rect.size = self.size
 
     def crear_interfaz(self, *args):
         self.clear_widgets()
         root = RelativeLayout()
 
-        # Fondo
-        fondo = Image(source="assets/fondo.png", allow_stretch=True, keep_ratio=False)
-        root.add_widget(fondo)
-
         # Contenedor principal
         layout = BoxLayout(orientation="vertical", padding=10, spacing=5)
 
         # Título
-        layout.add_widget(Label(text="🧾 CORTE DIARIO", size_hint_y=None, height=40, bold=True, font_size=22))
+        layout.add_widget(Label(text="🧾 CORTE DIARIO", size_hint_y=None, height=35, bold=True, font_size=18))
 
         # Encabezados
-        header = GridLayout(cols=5, size_hint_y=None, height=30, spacing=5)
-        for h in ["Empleado", "Producto", "Tipo de Venta", "Total $", "Hora"]:
-            header.add_widget(Label(text=h, bold=True, size_hint_y=None, height=30))
+        header = GridLayout(cols=5, size_hint_y=None, height=25, spacing=5)
+        for h in ["Empleado", "Producto", "Tipo de\nVenta", "Total $", "Hora"]:
+            header.add_widget(Label(text=h, bold=True, size_hint_y=None, height=25, font_size=14))
         layout.add_widget(header)
 
         # Scroll con ventas
@@ -51,20 +60,22 @@ class CorteDiario(Screen):
         layout.add_widget(scroll)
 
         # Total
-        self.total_label = Label(text="TOTAL CORTE DIARIO: $0", size_hint_y=None, height=40, halign='right', valign='middle')
+        self.total_label = Label(text="TOTAL CORTE DIARIO: $0", size_hint_y=None, height=35, halign='right', valign='middle', font_size=16)
         self.total_label.bind(size=self.total_label.setter('text_size'))
         layout.add_widget(self.total_label)
 
         # Botones
-        botones = BoxLayout(size_hint_y=None, height=50, spacing=10)
-        btn_guardar = Button(text="💾 Guardar Corte", on_release=self.guardar_corte)
-        btn_volver = Button(text="↩️ Volver", on_release=self.volver)
+        botones = BoxLayout(size_hint_y=None, height=45, spacing=10)
+        btn_guardar = Button(text="💾 Guardar Corte", font_size=14, on_release=self.guardar_corte)
+        btn_volver = Button(text="↩️ Volver", font_size=14, on_release=self.volver)
         botones.add_widget(btn_guardar)
         botones.add_widget(btn_volver)
         layout.add_widget(botones)
 
         root.add_widget(layout)
         self.add_widget(root)
+
+    # --- resto del código se mantiene igual ---
 
     def on_enter(self):
         self.cargar_ventas()
@@ -102,16 +113,26 @@ class CorteDiario(Screen):
             tipo_venta = "Fuera de Inventario" if venta.get("fuera_inventario", False) else "Dentro de Inventario"
 
             for producto in venta.get("productos", []):
-                self.ventas_layout.add_widget(Label(text=venta.get("usuario", "-"), size_hint_y=None, height=30))
                 cantidad = int(producto.get("cantidad", 1))
-                producto_texto = f"{cantidad} x {producto.get('producto', '-')}"
-                self.ventas_layout.add_widget(Label(text=producto_texto, size_hint_y=None, height=30))
-                self.ventas_layout.add_widget(Label(text=tipo_venta, size_hint_y=None, height=30))
-                subtotal = float(producto.get("precio", 0)) * cantidad
-                total += subtotal
-                self.ventas_layout.add_widget(Label(text=f"${subtotal:.2f}", size_hint_y=None, height=30))
-                hora_venta = fecha_venta_local.strftime("%H:%M:%S")
-                self.ventas_layout.add_widget(Label(text=hora_venta, size_hint_y=None, height=30))
+                fila_textos = [
+                    venta.get("usuario", "-"),
+                    f"{cantidad} x {producto.get('producto','-')}",
+                    tipo_venta,
+                    f"${float(producto.get('precio',0))*cantidad:.2f}",
+                    fecha_venta_local.strftime("%H:%M:%S")
+                ]
+                for texto in fila_textos:
+                    lbl = Label(
+                        text=texto,
+                        size_hint_y=None,
+                        height=50,
+                        halign='center',
+                        valign='middle'
+                    )
+                    lbl.bind(size=lbl.setter('text_size'))
+                    self.ventas_layout.add_widget(lbl)
+
+                total += float(producto.get("precio",0)) * cantidad
 
         self.total_label.text = f"TOTAL CORTE DIARIO: ${total:.2f}"
 

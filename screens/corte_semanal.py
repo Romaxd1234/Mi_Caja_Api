@@ -6,10 +6,13 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
+from kivy.resources import resource_add_path
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.widget import Widget
+from kivy.uix.textinput import TextInput
+from kivy.graphics import Rectangle
 import requests
 import calendar
+import os
 from datetime import datetime
 
 API_BASE = "https://mi-caja-api.onrender.com/tiendas"  # Cambia al host real
@@ -21,92 +24,66 @@ class CorteSemanalScreen(Screen):
         self.tienda_id = tienda_id
         self.pagos_prestamos_temp = {}
 
-        # Fondo
-        self.fondo = Image(source="assets/fondo.png", allow_stretch=True, keep_ratio=False)
-        self.add_widget(self.fondo)
+        resource_add_path(os.path.join(os.path.dirname(__file__), "assets"))
 
-        self.main_layout = BoxLayout(orientation='horizontal', padding=10, spacing=10)
+        # Fondo con canvas
+        with self.canvas.before:
+            self.fondo_rect = Rectangle(source="fondo.png", pos=self.pos, size=self.size)
+        self.bind(size=self._update_rect, pos=self._update_rect)
+
+        # Layout principal vertical
+        self.main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
         self.add_widget(self.main_layout)
-
-        self.layout_izquierdo = BoxLayout(orientation='vertical', size_hint_x=0.4, spacing=10)
-        self.layout_derecho = BoxLayout(orientation='vertical', size_hint_x=0.6, spacing=10)
-
-        self.main_layout.add_widget(self.layout_izquierdo)
-        self.main_layout.add_widget(self.layout_derecho)
 
         # Por defecto, vista cortes
         self.mostrar_vista_cortes()
 
+    def _update_rect(self, *args):
+        self.fondo_rect.pos = self.pos
+        self.fondo_rect.size = self.size
+
     # ---------------------
     # FUNCIONES API
     # ---------------------
+
     def obtener_cortes_diarios(self):
-        resp = requests.get(f"{API_BASE}/{self.tienda_id}/cortes/diarios")
-        if resp.status_code == 200:
-            return resp.json()
+        try:
+            resp = requests.get(f"{API_BASE}/{self.tienda_id}/cortes/diarios")
+            if resp.status_code == 200:
+                return resp.json()
+        except:
+            pass
         return []
 
     def obtener_empleados(self):
-        """Obtiene la lista de empleados desde la API."""
         try:
             resp = requests.get(f"{API_BASE}/{self.tienda_id}/empleados/")
             if resp.status_code == 200:
-                return resp.json()  # Se espera que cada empleado tenga 'prestamos' como lista
-            print(f"Error al obtener empleados: {resp.status_code}")
-        except Exception as e:
-            print("Error de conexión:", e)
+                return resp.json()
+        except:
+            pass
         return []
 
     def actualizar_prestamo(self, empleado_id, prestamo_id, nuevo_prestamo, pendiente):
-        """Actualiza el préstamo específico de un empleado en la API."""
-        data = {
-            "prestamos": [{"id": prestamo_id, "cantidad": str(nuevo_prestamo), "pendiente": pendiente}]
-        }
+        data = {"prestamos": [{"id": prestamo_id, "cantidad": str(nuevo_prestamo), "pendiente": pendiente}]}
         try:
             resp = requests.put(f"{API_BASE}/{self.tienda_id}/empleados/{empleado_id}", json=data)
-            if resp.status_code == 200:
-                print(f"Préstamo actualizado para empleado {empleado_id}")
-                return True
-            print(f"No se pudo actualizar préstamo: {resp.status_code} - {resp.text}")
-        except Exception as e:
-            print("Error al actualizar préstamo:", e)
-        return False
-
-    def cerrar_corte_semanal_api(self):
-        resp = requests.post(f"{API_BASE}/{self.tienda_id}/cortes/semanales")
-        return resp.status_code == 200
+            return resp.status_code == 200
+        except:
+            return False
 
     # ---------------------
     # VISTA PRINCIPAL DE CORTES
     # ---------------------
     def mostrar_vista_cortes(self, *args):
-        self.layout_izquierdo.clear_widgets()
-        self.layout_derecho.clear_widgets()
+        self.main_layout.clear_widgets()
 
-        # Botones en la izquierda abajo
-        btn_prestamos = Button(text="Préstamos", size_hint_y=None, height=50)
-        btn_volver = Button(text="Volver", size_hint_y=None, height=50)
-        btn_prestamos.bind(on_release=self.mostrar_vista_prestamos)
-        btn_volver.bind(on_release=self.volver_pantalla_principal)
-
-        self.layout_izquierdo.add_widget(Widget())  # Espacio
-        self.layout_izquierdo.add_widget(btn_prestamos)
-        self.layout_izquierdo.add_widget(btn_volver)
-
-        # Lado derecho: tabla de cortes y total
-        self.cargar_grafica_y_tabla()
-
-    def cargar_grafica_y_tabla(self):
-        self.layout_derecho.clear_widgets()
         cortes_diarios = self.obtener_cortes_diarios()
-
         if not cortes_diarios:
-            self.layout_derecho.add_widget(Label(text="No hay cortes guardados aún"))
+            self.main_layout.add_widget(Label(text="No hay cortes guardados aún"))
             return
 
-        layout_vertical = BoxLayout(orientation='vertical', spacing=10)
-
-        # Tabla
+        # ScrollView con GridLayout de 4 columnas
         grid = GridLayout(cols=4, size_hint_y=None, spacing=5)
         grid.bind(minimum_height=grid.setter('height'))
 
@@ -133,47 +110,57 @@ class CorteSemanalScreen(Screen):
 
         scroll = ScrollView(size_hint=(1, 1))
         scroll.add_widget(grid)
-        layout_vertical.add_widget(scroll)
+        self.main_layout.add_widget(scroll)
 
-        # Total y botón cerrar
-        layout_botones = BoxLayout(size_hint_y=None, height=50, spacing=10)
-        lbl_total = Label(text=f"Total General: ${total_general:.2f}", size_hint_x=0.7, halign='right', valign='middle')
+        # Footer horizontal
+        footer = BoxLayout(size_hint_y=None, height=50, spacing=10, padding=5)
+
+        # Botones izquierda
+        btn_prestamos = Button(text="Préstamos", size_hint_x=None, width=120)
+        btn_volver = Button(text="Volver", size_hint_x=None, width=120)
+        btn_prestamos.bind(on_release=self.mostrar_vista_prestamos)
+        btn_volver.bind(on_release=self.volver_pantalla_principal)
+        left_box = BoxLayout(orientation='vertical', size_hint_x=0.5, spacing=5)
+        left_box.add_widget(btn_prestamos)
+        left_box.add_widget(btn_volver)
+
+
+        # Label total y botón corte derecha
+        lbl_total = Label(text=f"Total General: ${total_general:.2f}", halign='right', valign='middle')
         lbl_total.bind(size=lbl_total.setter('text_size'))
+        btn_corte = Button(text="Corte", size_hint_x=None, width=100)
+        btn_corte.bind(on_release=self.cerrar_corte)
+        right_box = BoxLayout(size_hint_x=0.5, spacing=5)
+        right_box.add_widget(lbl_total)
+        right_box.add_widget(btn_corte)
 
-        btn_cerrar_corte = Button(text="Cerrar Corte", size_hint_x=0.3)
-        btn_cerrar_corte.bind(on_release=self.cerrar_corte)
-        layout_botones.add_widget(lbl_total)
-        layout_botones.add_widget(btn_cerrar_corte)
-
-        layout_vertical.add_widget(layout_botones)
-        self.layout_derecho.add_widget(layout_vertical)
+        footer.add_widget(left_box)
+        footer.add_widget(right_box)
+        self.main_layout.add_widget(footer)
 
     # ---------------------
     # VISTA PRÉSTAMOS
     # ---------------------
     def mostrar_vista_prestamos(self, *args):
-        from kivy.uix.textinput import TextInput
-        self.layout_izquierdo.clear_widgets()
-        self.layout_derecho.clear_widgets()
-
-        # Botón Volver
-        btn_volver = Button(text="Volver", size_hint_y=None, height=50)
-        btn_volver.bind(on_release=self.mostrar_vista_cortes)
-        self.layout_izquierdo.add_widget(Widget())
-        self.layout_izquierdo.add_widget(btn_volver)
+        self.main_layout.clear_widgets()
 
         empleados = self.obtener_empleados()
         prestamos_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=10)
         prestamos_layout.bind(minimum_height=prestamos_layout.setter('height'))
         scroll = ScrollView()
         scroll.add_widget(prestamos_layout)
-        self.layout_derecho.add_widget(scroll)
+        self.main_layout.add_widget(scroll)
+
+        # Botón Volver
+        btn_volver = Button(text="Volver", size_hint_y=None, height=50)
+        btn_volver.bind(on_release=self.mostrar_vista_cortes)
+        self.main_layout.add_widget(btn_volver)
 
         for emp in empleados:
             prestamo_info = emp.get("prestamos", [])
             if not prestamo_info:
                 continue
-            prestamo = prestamo_info[0]  # Tomamos el primer préstamo
+            prestamo = prestamo_info[0]
             cantidad = float(prestamo.get("cantidad", 0))
             pendiente = prestamo.get("pendiente", False)
             prestamo_id = prestamo.get("id")
@@ -192,7 +179,7 @@ class CorteSemanalScreen(Screen):
                 prestamos_layout.add_widget(fila)
 
                 def pagar_prestamo(instance, empleado=emp, prestamo=prestamo,
-                                input_pago=input_pago, lbl_prestamo=lbl_prestamo):
+                                    input_pago=input_pago, lbl_prestamo=lbl_prestamo):
                     pago_texto = input_pago.text.strip()
                     if not pago_texto:
                         return
@@ -201,12 +188,9 @@ class CorteSemanalScreen(Screen):
                     nuevo_prestamo = float(prestamo.get("cantidad", 0)) - pago_val
                     pendiente_nuevo = nuevo_prestamo > 0
 
-                    # Actualizamos en API usando el ID del préstamo
                     exito = self.actualizar_prestamo(empleado["id"], prestamo.get("id"), nuevo_prestamo, pendiente_nuevo)
                     if exito:
-                        # Guardar pago temporal
                         self.pagos_prestamos_temp[empleado["nombre"]] = self.pagos_prestamos_temp.get(empleado["nombre"], 0) + pago_val
-                        # Actualizamos visualización
                         lbl_prestamo.text = f"${nuevo_prestamo:,.2f}"
                         input_pago.text = ""
                         if nuevo_prestamo <= 0:

@@ -3,8 +3,11 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.screenmanager import Screen
 from kivy.uix.button import Button
 from kivy.uix.label import Label
+from kivy.graphics import Rectangle
+from kivy.resources import resource_add_path
+import os
 import requests
-from datetime import datetime  # Necesario para la lógica de hora
+from datetime import datetime
 
 API_URL = "https://mi-caja-api.onrender.com/tiendas"
 
@@ -12,15 +15,13 @@ class SeleccionRolScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # Fondo
-        self.background = Image(
-            source=r'C:\Users\USER\Documents\APP\APP\assets\fondo.png',
-            allow_stretch=True,
-            keep_ratio=False,
-            size_hint=(1, 1),
-            pos_hint={'center_x': 0.5, 'center_y': 0.5}
-        )
-        self.add_widget(self.background)
+        ruta_assets = os.path.join(os.path.dirname(__file__), "assets")
+        resource_add_path(ruta_assets)
+
+        # Fondo con canvas
+        with self.canvas.before:
+            self.fondo_rect = Rectangle(source="fondo.png", pos=self.pos, size=self.size)
+        self.bind(size=self._update_rect, pos=self._update_rect)
 
         # Layout vertical para nombre y botones
         self.layout = BoxLayout(
@@ -49,11 +50,15 @@ class SeleccionRolScreen(Screen):
 
         # Variables
         self.tienda_actual_id = None
-        self.tienda_actual = None  # Guardaremos la tienda completa
+        self.tienda_actual = None
 
         # Enlazar botones
         self.btn_patron.bind(on_press=self.ir_pantalla_patron)
         # Botón empleado se enlaza después de cargar la tienda
+
+    def _update_rect(self, *args):
+        self.fondo_rect.pos = self.pos
+        self.fondo_rect.size = self.size
 
     def set_tienda_actual(self, tienda_id):
         """Establece la tienda actual por ID"""
