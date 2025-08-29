@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, APIRouter
 from pydantic import BaseModel
+import json
 from typing import List
 from datetime import datetime
 from databases import Database
@@ -72,12 +73,37 @@ def crear_estructura_tienda(nombre: str, password: str):
         "dispositivos_permitidos": 2     # NUEVO
     }
 
+
 async def obtener_tienda_json(tienda_id: int):
     query = tiendas_table.select().where(tiendas_table.c.id == tienda_id)
     tienda = await database.fetch_one(query)
     if not tienda:
         raise HTTPException(status_code=404, detail="Tienda no encontrada")
-    return dict(tienda)
+    
+    tienda_dict = dict(tienda)
+    
+    # Campos JSON que necesitamos parsear
+    campos_json = {
+        "patron": None,                   # dict o None
+        "empleados": [],                  # lista
+        "inventario": [],                 # lista
+        "ventas": [],                     # lista
+        "cortes": {"diarios": [], "semanales": []},  # dict con listas
+        "dispositivos_registrados": []    # lista
+    }
+    
+    for campo, default in campos_json.items():
+        valor = tienda_dict.get(campo)
+        if isinstance(valor, str):
+            try:
+                tienda_dict[campo] = json.loads(valor)
+            except Exception:
+                tienda_dict[campo] = default
+        elif valor is None:
+            tienda_dict[campo] = default
+
+    return tienda_dict
+
 
 async def actualizar_tienda(tienda_id: int, datos: dict):
     await database.execute(tiendas_table.update().where(tiendas_table.c.id == tienda_id).values(**datos))
