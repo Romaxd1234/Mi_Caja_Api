@@ -156,74 +156,89 @@ class CorteSemanalScreen(Screen):
     # ---------------------
     # VISTA PRÉSTAMOS
     # ---------------------
-    def mostrar_vista_prestamos(self, *args):
-        self.main_layout.clear_widgets()
+def mostrar_vista_prestamos(self, *args):
+    self.main_layout.clear_widgets()
 
-        cortes_diarios = self.obtener_cortes_diarios()
-        if not cortes_diarios:
-            # Mensaje de no hay cortes
-            self.main_layout.add_widget(Label(text="No hay cortes guardados aún", font_size=sp(14)))
-
-            # Botón Volver
-            btn_volver = Button(text="Volver", size_hint_y=None, height=dp(50), font_size=sp(14))
-            btn_volver.bind(on_release=self.volver_pantalla_principal)
-            self.main_layout.add_widget(btn_volver)
-            return
-
-        # Si hay cortes, mostrar préstamos
-        empleados = self.obtener_empleados()
-        prestamos_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(10))
-        prestamos_layout.bind(minimum_height=prestamos_layout.setter('height'))
-        scroll = ScrollView()
-        scroll.add_widget(prestamos_layout)
-        self.main_layout.add_widget(scroll)
+    empleados = self.obtener_empleados()
+    if not empleados:
+        self.main_layout.add_widget(Label(text="No hay empleados registrados", font_size=sp(14)))
 
         # Botón Volver
         btn_volver = Button(text="Volver", size_hint_y=None, height=dp(50), font_size=sp(14))
         btn_volver.bind(on_release=self.mostrar_vista_cortes)
         self.main_layout.add_widget(btn_volver)
+        return
 
-        for emp in empleados:
-            prestamo_info = emp.get("prestamos", [])
-            if not prestamo_info:
-                continue
-            prestamo = prestamo_info[0]
+    # Layout scrollable para préstamos
+    prestamos_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(10))
+    prestamos_layout.bind(minimum_height=prestamos_layout.setter('height'))
+    scroll = ScrollView()
+    scroll.add_widget(prestamos_layout)
+    self.main_layout.add_widget(scroll)
+
+    # Botón Volver
+    btn_volver = Button(text="Volver", size_hint_y=None, height=dp(50), font_size=sp(14))
+    btn_volver.bind(on_release=self.mostrar_vista_cortes)
+    self.main_layout.add_widget(btn_volver)
+
+    for emp in empleados:
+        prestamo_info = emp.get("prestamos", [])
+        if not prestamo_info:
+            continue
+
+        # Mostrar todos los préstamos del empleado
+        for prestamo in prestamo_info:
             cantidad = float(prestamo.get("cantidad", 0))
-            pendiente = prestamo.get("pendiente", False)
             prestamo_id = prestamo.get("id")
+            pendiente = prestamo.get("pendiente", True)
 
-            if cantidad > 0:
-                fila = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(5), padding=dp(5))
-                lbl_nombre = Label(text=emp.get("nombre", "Desconocido"), size_hint_x=0.3, font_size=sp(14))
-                lbl_prestamo = Label(text=f"${cantidad:,.2f}", size_hint_x=0.3, font_size=sp(14))
-                input_pago = TextInput(text="", multiline=False, input_filter='float', size_hint_x=0.2, font_size=sp(14))
-                btn_pagar = Button(text="Pagar", size_hint_x=0.2, font_size=sp(14))
+            if cantidad <= 0:
+                continue
 
-                fila.add_widget(lbl_nombre)
-                fila.add_widget(lbl_prestamo)
-                fila.add_widget(input_pago)
-                fila.add_widget(btn_pagar)
-                prestamos_layout.add_widget(fila)
+            fila = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(5), padding=dp(5))
+            lbl_nombre = Label(text=emp.get("nombre", "Desconocido"), size_hint_x=0.3, font_size=sp(14))
+            lbl_prestamo = Label(text=f"${cantidad:,.2f}", size_hint_x=0.3, font_size=sp(14))
+            input_pago = TextInput(text="", multiline=False, input_filter='float', size_hint_x=0.2, font_size=sp(14))
+            btn_pagar = Button(text="Pagar", size_hint_x=0.2, font_size=sp(14))
+            fila.add_widget(lbl_nombre)
+            fila.add_widget(lbl_prestamo)
+            fila.add_widget(input_pago)
+            fila.add_widget(btn_pagar)
+            prestamos_layout.add_widget(fila)
 
-                def pagar_prestamo(instance, empleado=emp, prestamo=prestamo,
-                                    input_pago=input_pago, lbl_prestamo=lbl_prestamo):
-                    pago_texto = input_pago.text.strip()
-                    if not pago_texto:
-                        return
-                    pago_val = float(pago_texto)
-                    pago_val = min(pago_val, float(prestamo.get("cantidad", 0)))
-                    nuevo_prestamo = float(prestamo.get("cantidad", 0)) - pago_val
-                    pendiente_nuevo = nuevo_prestamo > 0
+            # Función de pago
+            def pagar_prestamo(instance, empleado=emp, prestamo=prestamo,
+                                input_pago=input_pago, lbl_prestamo=lbl_prestamo,
+                                btn_pagar=btn_pagar):
+                pago_texto = input_pago.text.strip()
+                if not pago_texto:
+                    return
+                pago_val = float(pago_texto)
+                pago_val = min(pago_val, float(prestamo.get("cantidad", 0)))
+                nuevo_prestamo = float(prestamo.get("cantidad", 0)) - pago_val
+                pendiente_nuevo = nuevo_prestamo > 0
 
-                    exito = self.actualizar_prestamo(empleado["id"], prestamo.get("id"), nuevo_prestamo, pendiente_nuevo)
-                    if exito:
-                        self.pagos_prestamos_temp[empleado["nombre"]] = self.pagos_prestamos_temp.get(empleado["nombre"], 0) + pago_val
-                        lbl_prestamo.text = f"${nuevo_prestamo:,.2f}"
-                        input_pago.text = ""
-                        if nuevo_prestamo <= 0:
-                            btn_pagar.disabled = True
+                exito = self.actualizar_prestamo(
+                    empleado["id"],
+                    prestamo.get("id"),
+                    nuevo_prestamo,
+                    pendiente_nuevo
+                )
 
-                btn_pagar.bind(on_release=pagar_prestamo)
+                if exito:
+                    # Actualizar UI
+                    prestamo["cantidad"] = nuevo_prestamo
+                    prestamo["pendiente"] = pendiente_nuevo
+                    self.pagos_prestamos_temp[empleado["nombre"]] = \
+                        self.pagos_prestamos_temp.get(empleado["nombre"], 0) + pago_val
+
+                    lbl_prestamo.text = f"${nuevo_prestamo:,.2f}"
+                    input_pago.text = ""
+                    if nuevo_prestamo <= 0:
+                        btn_pagar.disabled = True
+
+            btn_pagar.bind(on_release=pagar_prestamo)
+
 
     # ---------------------
     # CERRAR CORTE

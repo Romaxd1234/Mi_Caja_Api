@@ -22,7 +22,9 @@ tiendas_table = Table(
     Column("empleados", JSON),
     Column("inventario", JSON),
     Column("ventas", JSON),
-    Column("cortes", JSON)
+    Column("cortes", JSON),
+    Column("dispositivos_registrados", JSON, default=[]),  # NUEVO
+    Column("dispositivos_permitidos", Integer, default=2)  # NUEVO
 )
 
 engine = create_engine(DATABASE_URL)
@@ -50,6 +52,12 @@ class PrestamoRequest(BaseModel):
     cantidad: float
     descripcion: str = ""
 
+class DispositivoRequest(BaseModel):
+    uuid: str
+
+class DispositivosPermitidosRequest(BaseModel):
+    dispositivos_permitidos: int
+
 # ---------------------
 # Funciones utilitarias
 # ---------------------
@@ -59,7 +67,9 @@ def crear_estructura_tienda(nombre: str, password: str):
         "empleados": [],
         "inventario": [],
         "ventas": [],
-        "cortes": {"diarios": [], "semanales": []}
+        "cortes": {"diarios": [], "semanales": []},
+        "dispositivos_registrados": [],  # NUEVO
+        "dispositivos_permitidos": 2     # NUEVO
     }
 
 async def obtener_tienda_json(tienda_id: int):
@@ -69,11 +79,26 @@ async def obtener_tienda_json(tienda_id: int):
         raise HTTPException(status_code=404, detail="Tienda no encontrada")
     return dict(tienda)
 
+import json
+
 async def actualizar_tienda(tienda_id: int, datos: dict):
-    await database.execute(tiendas_table.update().where(tiendas_table.c.id == tienda_id).values(**datos))
+    """
+    Actualiza una tienda en la base de datos.
+    Convierte automáticamente listas y diccionarios a JSON antes de guardar.
+    """
+    datos_convertidos = {}
+    for k, v in datos.items():
+        # Si es dict o list, lo convertimos a JSON string
+        if isinstance(v, (dict, list)):
+            datos_convertidos[k] = json.dumps(v)
+        else:
+            datos_convertidos[k] = v
+
+    query = tiendas_table.update().where(tiendas_table.c.id == tienda_id).values(**datos_convertidos)
+    await database.execute(query)
 
 # ---------------------
-# Routers
+# Routers existentes
 # ---------------------
 tiendas_router = APIRouter(prefix="/tiendas", tags=["Tiendas"])
 patron_router = APIRouter(prefix="/tiendas/{tienda_id}/patron", tags=["Patrón"])
@@ -83,6 +108,43 @@ ventas_router = APIRouter(prefix="/tiendas/{tienda_id}/ventas", tags=["Ventas"])
 cortes_router = APIRouter(prefix="/tiendas/{tienda_id}/cortes", tags=["Cortes"])
 prestamos_router = APIRouter(prefix="/tiendas/{tienda_id}/empleados/{empleado_id}/prestamos", tags=["Préstamos"])
 
+# ---------------------
+# Endpoints dispositivos NUEVOS
+# ---------------------
+dispositivos_router = APIRouter(prefix="/tiendas/{tienda_id}/dispositivos", tags=["Dispositivos"])
+
+@dispositivos_router.get("/")
+async def obtener_dispositivos(tienda_id: int):
+    tienda = await obtener_tienda_json(tienda_id)
+    return {"dispositivos_registrados": tienda.get("dispositivos_registrados", [])}
+
+@dispositivos_router.post("/")
+async def registrar_dispositivo(tienda_id: int, dispositivo: DispositivoRequest):
+    tienda = await obtener_tienda_json(tienda_id)
+    registrados = tienda.get("dispositivos_registrados", [])
+    max_dispositivos = tienda.get("dispositivos_permitidos", 2)
+    if len(registrados) >= max_dispositivos:
+        raise HTTPException(status_code=400, detail="Límite de dispositivos alcanzado")
+    if dispositivo.uuid in registrados:
+        raise HTTPException(status_code=400, detail="Dispositivo ya registrado")
+    registrados.append(dispositivo.uuid)
+    await actualizar_tienda(tienda_id, {"dispositivos_registrados": registrados})
+    return {"mensaje": "Dispositivo registrado", "uuid": dispositivo.uuid}
+
+@dispositivos_router.put("/permitidos")
+async def actualizar_dispositivos_permitidos(tienda_id: int, data: DispositivosPermitidosRequest):
+    await actualizar_tienda(tienda_id, {"dispositivos_permitidos": data.dispositivos_permitidos})
+    return {"mensaje": "Cantidad máxima de dispositivos actualizada", "dispositivos_permitidos": data.dispositivos_permitidos}
+
+@dispositivos_router.delete("/{uuid_dispositivo}")
+async def eliminar_dispositivo(tienda_id: int, uuid_dispositivo: str):
+    tienda = await obtener_tienda_json(tienda_id)
+    registrados = tienda.get("dispositivos_registrados", [])
+    if uuid_dispositivo not in registrados:
+        raise HTTPException(status_code=404, detail="Dispositivo no encontrado")
+    registrados = [d for d in registrados if d != uuid_dispositivo]
+    await actualizar_tienda(tienda_id, {"dispositivos_registrados": registrados})
+    return {"mensaje": "Dispositivo eliminado"}
 # ---------------------
 # Rutas Tiendas
 # ---------------------
@@ -296,19 +358,23 @@ async def eliminar_corte_semanal(tienda_id: int, corte_id: int):
 async def listar_prestamos(tienda_id: int, empleado_id: int):
     tienda = await obtener_tienda_json(tienda_id)
     empleado = next((e for e in tienda["empleados"] if e["id"] == empleado_id), None)
-    if not empleado: raise HTTPException(status_code=404)
+    if not empleado: 
+        raise HTTPException(status_code=404)
     return empleado["prestamos"]
 
 @prestamos_router.post("/")
 async def agregar_prestamo(tienda_id: int, empleado_id: int, prestamo: PrestamoRequest):
     tienda = await obtener_tienda_json(tienda_id)
     empleado = next((e for e in tienda["empleados"] if e["id"] == empleado_id), None)
-    if not empleado: raise HTTPException(status_code=404)
+    if not empleado: 
+        raise HTTPException(status_code=404)
+    
     nuevo = {
-        "id": len(empleado["prestamos"])+1,
+        "id": len(empleado["prestamos"]) + 1,
         "cantidad": prestamo.cantidad,
         "descripcion": prestamo.descripcion,
-        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "pendiente": True  # <-- NUEVO CAMPO
     }
     empleado["prestamos"].append(nuevo)
     empleados = [e if e["id"] != empleado_id else empleado for e in tienda["empleados"]]
@@ -316,7 +382,14 @@ async def agregar_prestamo(tienda_id: int, empleado_id: int, prestamo: PrestamoR
     return nuevo
 
 @prestamos_router.put("/{prestamo_id}")
-async def editar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int, cantidad: float = None, descripcion: str = None):
+async def editar_prestamo(
+    tienda_id: int,
+    empleado_id: int,
+    prestamo_id: int,
+    cantidad: float = None,
+    descripcion: str = None,
+    pendiente: bool = None  # <-- NUEVO PARAMETRO
+):
     tienda = await obtener_tienda_json(tienda_id)
     empleado = next((e for e in tienda["empleados"] if e["id"] == empleado_id), None)
     if not empleado:
@@ -330,7 +403,9 @@ async def editar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int, ca
         prestamo["cantidad"] = cantidad
     if descripcion is not None:
         prestamo["descripcion"] = descripcion
-    
+    if pendiente is not None:
+        prestamo["pendiente"] = pendiente  # <-- GUARDAMOS EL ESTADO
+
     empleados = [e if e["id"] != empleado_id else empleado for e in tienda["empleados"]]
     await actualizar_tienda(tienda_id, {"empleados": empleados})
     return prestamo
@@ -344,7 +419,6 @@ async def eliminar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int):
     
     prestamos = [p for p in empleado["prestamos"] if p["id"] != prestamo_id]
     empleado["prestamos"] = prestamos
-    
     empleados = [e if e["id"] != empleado_id else empleado for e in tienda["empleados"]]
     await actualizar_tienda(tienda_id, {"empleados": empleados})
     return {"mensaje": "Préstamo eliminado"}
@@ -370,6 +444,7 @@ app.include_router(inventario_router)
 app.include_router(ventas_router)
 app.include_router(cortes_router)
 app.include_router(prestamos_router)
+app.include_router(dispositivos_router) 
 
 @app.get("/")
 async def raiz():
