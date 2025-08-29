@@ -5,6 +5,7 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.graphics import Rectangle
 from kivy.resources import resource_add_path
+from kivy.metrics import dp, sp
 import os
 import requests
 from datetime import datetime
@@ -26,22 +27,22 @@ class SeleccionRolScreen(Screen):
         # Layout vertical para nombre y botones
         self.layout = BoxLayout(
             orientation='vertical',
-            size_hint=(0.5, 0.5),
-            spacing=20,
+            size_hint=(0.6, 0.5),
+            spacing=dp(20),
             pos_hint={'center_x': 0.5, 'center_y': 0.5}
         )
 
         self.nombre_label = Label(
             text="Cargando tienda...",
-            font_size=32,
+            font_size=sp(24),
             bold=True,
             color=(1, 1, 1, 1),
             size_hint=(1, None),
-            height=50
+            height=dp(50)
         )
 
-        self.btn_empleado = Button(text="Empleado", size_hint=(1, None), height=50)
-        self.btn_patron = Button(text="Patrón", size_hint=(1, None), height=50)
+        self.btn_empleado = Button(text="Empleado", size_hint=(1, None), height=dp(50))
+        self.btn_patron = Button(text="Patrón", size_hint=(1, None), height=dp(50))
 
         self.layout.add_widget(self.nombre_label)
         self.layout.add_widget(self.btn_empleado)

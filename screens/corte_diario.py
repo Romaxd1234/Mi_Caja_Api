@@ -9,6 +9,8 @@ from kivy.properties import StringProperty
 from kivy.resources import resource_add_path
 from kivy.clock import Clock
 from kivy.graphics import Rectangle
+from kivy.metrics import dp, sp
+from kivy.uix.popup import Popup
 import os
 import pytz
 import requests
@@ -40,40 +42,43 @@ class CorteDiario(Screen):
         self.clear_widgets()
         root = RelativeLayout()
 
-        # Contenedor principal
-        layout = BoxLayout(orientation="vertical", padding=10, spacing=5)
+        layout = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(5))
 
         # Título
-        layout.add_widget(Label(text="🧾 CORTE DIARIO", size_hint_y=None, height=35, bold=True, font_size=18))
+        layout.add_widget(Label(text="🧾 CORTE DIARIO", size_hint_y=None, height=dp(40), bold=True, font_size=sp(18)))
 
         # Encabezados
-        header = GridLayout(cols=5, size_hint_y=None, height=25, spacing=5)
+        header = GridLayout(cols=5, size_hint_y=None, height=dp(30), spacing=dp(5))
         for h in ["Empleado", "Producto", "Tipo de\nVenta", "Total $", "Hora"]:
-            header.add_widget(Label(text=h, bold=True, size_hint_y=None, height=25, font_size=14))
+            header.add_widget(Label(text=h, bold=True, font_size=sp(14), halign='center', valign='middle'))
         layout.add_widget(header)
 
         # Scroll con ventas
-        scroll = ScrollView(size_hint=(1, 0.85))
-        self.ventas_layout = GridLayout(cols=5, spacing=5, size_hint_y=None)
+        scroll = ScrollView(size_hint=(1, 0.8))
+        self.ventas_layout = GridLayout(cols=5, spacing=dp(5), size_hint_y=None)
         self.ventas_layout.bind(minimum_height=self.ventas_layout.setter('height'))
         scroll.add_widget(self.ventas_layout)
         layout.add_widget(scroll)
 
         # Total
-        self.total_label = Label(text="TOTAL CORTE DIARIO: $0", size_hint_y=None, height=35, halign='right', valign='middle', font_size=16)
+        self.total_label = Label(text="TOTAL CORTE DIARIO: $0", size_hint_y=None, height=dp(40),
+                                 halign='right', valign='middle', font_size=sp(16))
         self.total_label.bind(size=self.total_label.setter('text_size'))
         layout.add_widget(self.total_label)
 
         # Botones
-        botones = BoxLayout(size_hint_y=None, height=45, spacing=10)
-        btn_guardar = Button(text="💾 Guardar Corte", font_size=14, on_release=self.guardar_corte)
-        btn_volver = Button(text="↩️ Volver", font_size=14, on_release=self.volver)
+        botones = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10))
+        btn_guardar = Button(text="💾 Guardar Corte", font_size=sp(14), on_release=self.guardar_corte)
+        btn_volver = Button(text="↩️ Volver", font_size=sp(14), on_release=self.volver)
         botones.add_widget(btn_guardar)
         botones.add_widget(btn_volver)
         layout.add_widget(botones)
 
         root.add_widget(layout)
         self.add_widget(root)
+
+    # --- resto del código se mantiene igual, solo agregando dp() y sp() donde aplique ---
+
 
     # --- resto del código se mantiene igual ---
 
@@ -125,7 +130,7 @@ class CorteDiario(Screen):
                     lbl = Label(
                         text=texto,
                         size_hint_y=None,
-                        height=50,
+                        height=dp(50),
                         halign='center',
                         valign='middle'
                     )

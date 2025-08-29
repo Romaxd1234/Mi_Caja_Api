@@ -21,7 +21,6 @@ from screens.registro_semanal import RegistroSemanal
 class MiCajaApp(App):
     def build(self):
 
-
         sm = ScreenManager()
 
         # Agregamos todas las pantallas

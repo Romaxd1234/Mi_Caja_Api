@@ -7,9 +7,10 @@ from kivy.uix.togglebutton import ToggleButton
 from kivy.resources import resource_add_path
 from kivy.uix.scrollview import ScrollView
 from kivy.graphics import Rectangle
+from kivy.metrics import dp, sp
+from kivy.storage.jsonstore import JsonStore
 import requests
 import os
-import re  # para limpiar nombres de archivos
 
 BASE_URL = "https://mi-caja-api.onrender.com"
 
@@ -27,50 +28,50 @@ class BienvenidaScreen(Screen):
         # Contenedor principal dentro de ScrollView
         layout = BoxLayout(
             orientation='vertical',
-            padding=30,
-            spacing=15,
-            size_hint=(0.9, None)
+            padding=dp(20),
+            spacing=dp(15),
+            size_hint=(0.95, None)
         )
         layout.bind(minimum_height=layout.setter('height'))
 
         # Título
-        layout.add_widget(Label(text="Crear Tienda", font_size=24, size_hint_y=None, height=50))
+        layout.add_widget(Label(text="Crear Tienda", font_size=sp(24), size_hint_y=None, height=dp(50)))
 
         # Nombre de la tienda
-        layout.add_widget(Label(text="Nombre de la tienda", size_hint_y=None, height=30))
-        self.nombre_input = TextInput(multiline=False, size_hint_y=None, height=50)
+        layout.add_widget(Label(text="Nombre de la tienda", size_hint_y=None, height=dp(30)))
+        self.nombre_input = TextInput(multiline=False, size_hint_y=None, height=dp(50))
         layout.add_widget(self.nombre_input)
 
         # Contraseña con ojito
-        layout.add_widget(Label(text="Contraseña", size_hint_y=None, height=30))
-        self.pass_layout = BoxLayout(size_hint_y=None, height=50)
-        self.contra_input = TextInput(password=True, multiline=False)
+        layout.add_widget(Label(text="Contraseña", size_hint_y=None, height=dp(30)))
+        self.pass_layout = BoxLayout(size_hint_y=None, height=dp(50))
+        self.contra_input = TextInput(password=True, multiline=False, size_hint=(0.9, 1))
         self.pass_layout.add_widget(self.contra_input)
-        self.show_pass_btn = ToggleButton(text="👁", size_hint_x=None, width=50)
+        self.show_pass_btn = ToggleButton(text="👁", size_hint=(0.1, 1))
         self.show_pass_btn.bind(on_press=self.toggle_password)
         self.pass_layout.add_widget(self.show_pass_btn)
         layout.add_widget(self.pass_layout)
 
         # Confirmar contraseña con ojito
-        layout.add_widget(Label(text="Confirmar contraseña", size_hint_y=None, height=30))
-        self.pass_confirm_layout = BoxLayout(size_hint_y=None, height=50)
-        self.contra_confirm_input = TextInput(password=True, multiline=False)
+        layout.add_widget(Label(text="Confirmar contraseña", size_hint_y=None, height=dp(30)))
+        self.pass_confirm_layout = BoxLayout(size_hint_y=None, height=dp(50))
+        self.contra_confirm_input = TextInput(password=True, multiline=False, size_hint=(0.9, 1))
         self.pass_confirm_layout.add_widget(self.contra_confirm_input)
-        self.show_pass_confirm_btn = ToggleButton(text="👁", size_hint_x=None, width=50)
+        self.show_pass_confirm_btn = ToggleButton(text="👁", size_hint=(0.1, 1))
         self.show_pass_confirm_btn.bind(on_press=self.toggle_password_confirm)
         self.pass_confirm_layout.add_widget(self.show_pass_confirm_btn)
         layout.add_widget(self.pass_confirm_layout)
 
         # Mensaje de error
-        self.msg = Label(text="", color=(1, 0, 0, 1), size_hint_y=None, height=30)
+        self.msg = Label(text="", color=(1, 0, 0, 1), size_hint_y=None, height=dp(30))
         layout.add_widget(self.msg)
 
         # Botones
-        btn_crear = Button(text="Crear Tienda", size_hint_y=None, height=50)
+        btn_crear = Button(text="Crear Tienda", size_hint_y=None, height=dp(50))
         btn_crear.bind(on_press=self.crear_tienda)
         layout.add_widget(btn_crear)
 
-        btn_abrir = Button(text="¿Ya registraste tu tienda?", size_hint_y=None, height=50)
+        btn_abrir = Button(text="¿Ya registraste tu tienda?", size_hint_y=None, height=dp(50))
         btn_abrir.bind(on_press=self.abrir_pantalla_abrir_tienda)
         layout.add_widget(btn_abrir)
 

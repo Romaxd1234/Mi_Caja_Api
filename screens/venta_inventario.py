@@ -9,6 +9,7 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.popup import Popup
 from kivy.uix.label import Label
 from kivy.properties import ListProperty, StringProperty
+from kivy.metrics import dp, sp
 from datetime import datetime
 from fuzzywuzzy import process
 from kivy.graphics import Rectangle
@@ -32,8 +33,7 @@ class VentaInventario(Screen):
         self.nombre_usuario = ""
 
         # Layout base con fondo
-
-        self.layout = FloatLayout()  # <-- se crea primero
+        self.layout = FloatLayout()
         self.add_widget(self.layout)
 
         with self.layout.canvas.before:
@@ -41,34 +41,62 @@ class VentaInventario(Screen):
         self.layout.bind(size=self._update_rect, pos=self._update_rect)
 
         # Layout principal vertical encima
-        self.layout_principal = BoxLayout(orientation='vertical', spacing=10, padding=10)
+        self.layout_principal = BoxLayout(orientation='vertical', spacing=dp(10), padding=dp(10))
         self.layout.add_widget(self.layout_principal)
 
         # Barra de búsqueda
-        layout_busqueda = BoxLayout(size_hint_y=None, height=40, spacing=10)
-        self.input_busqueda = TextInput(hint_text="Buscar producto...", multiline=False)
-        self.boton_buscar = Button(text="Buscar", size_hint_x=None, width=100)
+        layout_busqueda = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10))
+        self.input_busqueda = TextInput(
+            hint_text="Buscar producto...",
+            multiline=False,
+            font_size=sp(16)
+        )
+        self.boton_buscar = Button(
+            text="Buscar",
+            size_hint_x=None,
+            width=dp(120),
+            font_size=sp(16)
+        )
         self.boton_buscar.bind(on_release=self.buscar)
         layout_busqueda.add_widget(self.input_busqueda)
         layout_busqueda.add_widget(self.boton_buscar)
         self.layout_principal.add_widget(layout_busqueda)
 
-        self.label_seleccion = Label(text="Producto seleccionado: Ninguno", size_hint_y=None, height=30)
+        self.label_seleccion = Label(
+            text="Producto seleccionado: Ninguno",
+            size_hint_y=None,
+            height=dp(30),
+            font_size=sp(14)
+        )
         self.layout_principal.add_widget(self.label_seleccion)
 
         # Lista resultados
         self.scroll_resultados = ScrollView()
-        self.grid_resultados = GridLayout(cols=1, spacing=10, size_hint_y=None)
+        self.grid_resultados = GridLayout(cols=1, spacing=dp(10), size_hint_y=None)
         self.grid_resultados.bind(minimum_height=self.grid_resultados.setter('height'))
         self.scroll_resultados.add_widget(self.grid_resultados)
         self.layout_principal.add_widget(self.scroll_resultados)
 
         # Cantidad piezas y botón seleccionar
-        layout_cantidad = BoxLayout(size_hint_y=None, height=40, spacing=10)
-        self.input_piezas = TextInput(hint_text="Piezas", multiline=False, input_filter='int', size_hint_x=0.3)
-        self.boton_seleccionar = Button(text="Seleccionar", size_hint_x=0.7)
+        layout_cantidad = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10))
+        self.input_piezas = TextInput(
+            hint_text="Piezas",
+            multiline=False,
+            input_filter='int',
+            size_hint_x=0.3,
+            font_size=sp(16)
+        )
+        self.boton_seleccionar = Button(
+            text="Seleccionar",
+            size_hint_x=0.35,
+            font_size=sp(16)
+        )
         self.boton_seleccionar.bind(on_release=self.agregar_al_carrito)
-        self.boton_eliminar = Button(text="Eliminar", size_hint_x=0.7)
+        self.boton_eliminar = Button(
+            text="Eliminar",
+            size_hint_x=0.35,
+            font_size=sp(16)
+        )
         self.boton_eliminar.bind(on_release=self.eliminar_producto)
         layout_cantidad.add_widget(self.input_piezas)
         layout_cantidad.add_widget(self.boton_seleccionar)
@@ -76,10 +104,10 @@ class VentaInventario(Screen):
         self.layout_principal.add_widget(layout_cantidad)
 
         # Botones Volver y Finalizar compra
-        layout_botones_final = BoxLayout(size_hint_y=None, height=40, spacing=10)
-        self.boton_volver = Button(text="Volver")
+        layout_botones_final = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10))
+        self.boton_volver = Button(text="Volver", font_size=sp(16))
         self.boton_volver.bind(on_release=self.volver_a_principal)
-        self.boton_finalizar = Button(text="Finalizar compra")
+        self.boton_finalizar = Button(text="Finalizar compra", font_size=sp(16))
         self.boton_finalizar.bind(on_release=lambda x: self.mostrar_popup_carrito())
         layout_botones_final.add_widget(self.boton_volver)
         layout_botones_final.add_widget(self.boton_finalizar)
@@ -217,14 +245,19 @@ class VentaInventario(Screen):
 
 
     def mostrar_resultados(self, lista_productos):
-        self.grid_resultados.clear_widgets()
-        productos_filtrados = [prod for prod in lista_productos if prod.get('piezas', 0) > 0]
-        for idx, prod in enumerate(productos_filtrados):
-            piezas = prod.get('piezas', 0)
-            btn = Button(text=f"{prod['producto']}  -  ${prod['precio']}  -  {piezas} piezas", size_hint_y=None, height=40)
-            btn.bind(on_release=lambda btn, i=idx, lp=productos_filtrados: self.seleccionar_producto(i, lp, btn))
-            btn.background_color = (1, 1, 1, 1) if self.boton_seleccionado != btn else (0,0,1,1)
-            self.grid_resultados.add_widget(btn)
+            self.grid_resultados.clear_widgets()
+            productos_filtrados = [prod for prod in lista_productos if prod.get('piezas', 0) > 0]
+            for idx, prod in enumerate(productos_filtrados):
+                piezas = prod.get('piezas', 0)
+                btn = Button(
+                    text=f"{prod['producto']}  -  ${prod['precio']}  -  {piezas} piezas",
+                    size_hint_y=None,
+                    height=dp(50),
+                    font_size=sp(15)
+                )
+                btn.bind(on_release=lambda btn, i=idx, lp=productos_filtrados: self.seleccionar_producto(i, lp, btn))
+                btn.background_color = (1, 1, 1, 1) if self.boton_seleccionado != btn else (0, 0, 1, 1)
+                self.grid_resultados.add_widget(btn)
 
     def seleccionar_producto(self, index, lista_actual, boton):
         self.producto_seleccionado = lista_actual[index]

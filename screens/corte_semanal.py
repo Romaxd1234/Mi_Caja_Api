@@ -10,6 +10,7 @@ from kivy.resources import resource_add_path
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.textinput import TextInput
 from kivy.graphics import Rectangle
+from kivy.metrics import dp, sp
 import requests
 import calendar
 import os
@@ -32,7 +33,7 @@ class CorteSemanalScreen(Screen):
         self.bind(size=self._update_rect, pos=self._update_rect)
 
         # Layout principal vertical
-        self.main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        self.main_layout = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
         self.add_widget(self.main_layout)
 
         # Por defecto, vista cortes
@@ -45,7 +46,6 @@ class CorteSemanalScreen(Screen):
     # ---------------------
     # FUNCIONES API
     # ---------------------
-
     def obtener_cortes_diarios(self):
         try:
             resp = requests.get(f"{API_BASE}/{self.tienda_id}/cortes/diarios")
@@ -64,13 +64,25 @@ class CorteSemanalScreen(Screen):
             pass
         return []
 
-    def actualizar_prestamo(self, empleado_id, prestamo_id, nuevo_prestamo, pendiente):
-        data = {"prestamos": [{"id": prestamo_id, "cantidad": str(nuevo_prestamo), "pendiente": pendiente}]}
-        try:
-            resp = requests.put(f"{API_BASE}/{self.tienda_id}/empleados/{empleado_id}", json=data)
-            return resp.status_code == 200
-        except:
+    def actualizar_prestamo(self, empleado_id, prestamo_id, nuevo_prestamo, descripcion=None):
+        # Traer todos los préstamos del empleado
+        resp = requests.get(f"{API_BASE}/{self.tienda_id}/empleados/{empleado_id}/prestamos/")
+        if resp.status_code != 200:
             return False
+        prestamos = resp.json()
+
+        # Buscar y actualizar el préstamo
+        prestamo = next((p for p in prestamos if p["id"] == prestamo_id), None)
+        if not prestamo:
+            return False
+        prestamo["cantidad"] = nuevo_prestamo
+        if descripcion:
+            prestamo["descripcion"] = descripcion
+
+        # Llamar al endpoint PUT correcto
+        resp_put = requests.put(f"{API_BASE}/{self.tienda_id}/empleados/{empleado_id}/prestamos/{prestamo_id}",
+                                json={"cantidad": prestamo["cantidad"], "descripcion": prestamo.get("descripcion")})
+        return resp_put.status_code == 200
 
     # ---------------------
     # VISTA PRINCIPAL DE CORTES
@@ -80,16 +92,20 @@ class CorteSemanalScreen(Screen):
 
         cortes_diarios = self.obtener_cortes_diarios()
         if not cortes_diarios:
-            self.main_layout.add_widget(Label(text="No hay cortes guardados aún"))
+            self.main_layout.add_widget(Label(text="No hay cortes guardados aún", font_size=sp(14)))
+
+            btn_volver = Button(text="Volver", size_hint_y=None, height=dp(50), font_size=sp(14))
+            btn_volver.bind(on_release=self.volver_pantalla_principal)
+            self.main_layout.add_widget(btn_volver)
             return
 
         # ScrollView con GridLayout de 4 columnas
-        grid = GridLayout(cols=4, size_hint_y=None, spacing=5)
+        grid = GridLayout(cols=4, size_hint_y=None, spacing=dp(5))
         grid.bind(minimum_height=grid.setter('height'))
 
         encabezados = ["Día", "Fecha", "Empleado", "Total"]
         for h in encabezados:
-            grid.add_widget(Label(text=f"[b]{h}[/b]", markup=True, size_hint_y=None, height=30))
+            grid.add_widget(Label(text=f"[b]{h}[/b]", markup=True, size_hint_y=None, height=dp(30), font_size=sp(14)))
 
         total_general = 0
         for idx, corte in enumerate(cortes_diarios, 1):
@@ -103,34 +119,33 @@ class CorteSemanalScreen(Screen):
             total = float(corte.get("total", 0))
             total_general += total
 
-            grid.add_widget(Label(text=dia_semana, size_hint_y=None, height=30))
-            grid.add_widget(Label(text=fecha_str, size_hint_y=None, height=30))
-            grid.add_widget(Label(text=empleado, size_hint_y=None, height=30))
-            grid.add_widget(Label(text=f"${total:.2f}", size_hint_y=None, height=30))
+            grid.add_widget(Label(text=dia_semana, size_hint_y=None, height=dp(30), font_size=sp(14)))
+            grid.add_widget(Label(text=fecha_str, size_hint_y=None, height=dp(30), font_size=sp(14)))
+            grid.add_widget(Label(text=empleado, size_hint_y=None, height=dp(30), font_size=sp(14)))
+            grid.add_widget(Label(text=f"${total:.2f}", size_hint_y=None, height=dp(30), font_size=sp(14)))
 
         scroll = ScrollView(size_hint=(1, 1))
         scroll.add_widget(grid)
         self.main_layout.add_widget(scroll)
 
         # Footer horizontal
-        footer = BoxLayout(size_hint_y=None, height=50, spacing=10, padding=5)
+        footer = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10), padding=dp(5))
 
         # Botones izquierda
-        btn_prestamos = Button(text="Préstamos", size_hint_x=None, width=120)
-        btn_volver = Button(text="Volver", size_hint_x=None, width=120)
+        btn_prestamos = Button(text="Préstamos", size_hint_x=None, width=dp(120), font_size=sp(14))
+        btn_volver = Button(text="Volver", size_hint_x=None, width=dp(120), font_size=sp(14))
         btn_prestamos.bind(on_release=self.mostrar_vista_prestamos)
         btn_volver.bind(on_release=self.volver_pantalla_principal)
-        left_box = BoxLayout(orientation='vertical', size_hint_x=0.5, spacing=5)
+        left_box = BoxLayout(orientation='vertical', size_hint_x=0.5, spacing=dp(5))
         left_box.add_widget(btn_prestamos)
         left_box.add_widget(btn_volver)
 
-
         # Label total y botón corte derecha
-        lbl_total = Label(text=f"Total General: ${total_general:.2f}", halign='right', valign='middle')
+        lbl_total = Label(text=f"Total General: ${total_general:.2f}", halign='right', valign='middle', font_size=sp(16))
         lbl_total.bind(size=lbl_total.setter('text_size'))
-        btn_corte = Button(text="Corte", size_hint_x=None, width=100)
+        btn_corte = Button(text="Corte", size_hint_x=None, width=dp(100), font_size=sp(14))
         btn_corte.bind(on_release=self.cerrar_corte)
-        right_box = BoxLayout(size_hint_x=0.5, spacing=5)
+        right_box = BoxLayout(size_hint_x=0.5, spacing=dp(5))
         right_box.add_widget(lbl_total)
         right_box.add_widget(btn_corte)
 
@@ -144,15 +159,27 @@ class CorteSemanalScreen(Screen):
     def mostrar_vista_prestamos(self, *args):
         self.main_layout.clear_widgets()
 
+        cortes_diarios = self.obtener_cortes_diarios()
+        if not cortes_diarios:
+            # Mensaje de no hay cortes
+            self.main_layout.add_widget(Label(text="No hay cortes guardados aún", font_size=sp(14)))
+
+            # Botón Volver
+            btn_volver = Button(text="Volver", size_hint_y=None, height=dp(50), font_size=sp(14))
+            btn_volver.bind(on_release=self.volver_pantalla_principal)
+            self.main_layout.add_widget(btn_volver)
+            return
+
+        # Si hay cortes, mostrar préstamos
         empleados = self.obtener_empleados()
-        prestamos_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=10)
+        prestamos_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(10))
         prestamos_layout.bind(minimum_height=prestamos_layout.setter('height'))
         scroll = ScrollView()
         scroll.add_widget(prestamos_layout)
         self.main_layout.add_widget(scroll)
 
         # Botón Volver
-        btn_volver = Button(text="Volver", size_hint_y=None, height=50)
+        btn_volver = Button(text="Volver", size_hint_y=None, height=dp(50), font_size=sp(14))
         btn_volver.bind(on_release=self.mostrar_vista_cortes)
         self.main_layout.add_widget(btn_volver)
 
@@ -166,11 +193,11 @@ class CorteSemanalScreen(Screen):
             prestamo_id = prestamo.get("id")
 
             if cantidad > 0:
-                fila = BoxLayout(size_hint_y=None, height=40, spacing=5, padding=5)
-                lbl_nombre = Label(text=emp.get("nombre", "Desconocido"), size_hint_x=0.3)
-                lbl_prestamo = Label(text=f"${cantidad:,.2f}", size_hint_x=0.3)
-                input_pago = TextInput(text="", multiline=False, input_filter='float', size_hint_x=0.2)
-                btn_pagar = Button(text="Pagar", size_hint_x=0.2)
+                fila = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(5), padding=dp(5))
+                lbl_nombre = Label(text=emp.get("nombre", "Desconocido"), size_hint_x=0.3, font_size=sp(14))
+                lbl_prestamo = Label(text=f"${cantidad:,.2f}", size_hint_x=0.3, font_size=sp(14))
+                input_pago = TextInput(text="", multiline=False, input_filter='float', size_hint_x=0.2, font_size=sp(14))
+                btn_pagar = Button(text="Pagar", size_hint_x=0.2, font_size=sp(14))
 
                 fila.add_widget(lbl_nombre)
                 fila.add_widget(lbl_prestamo)
@@ -205,46 +232,40 @@ class CorteSemanalScreen(Screen):
         cortes_diarios = self.obtener_cortes_diarios()
         empleados = self.obtener_empleados()
 
-        # -----------------------------
-        # Calcular totales y resumen
-        # -----------------------------
-        dias_texto = ""
-        total_ventas = 0
-        for idx, corte in enumerate(cortes_diarios, 1):
-            total = float(corte.get("total", 0))
-            total_ventas += total
-            dias_texto += f"Día {idx:<6}   +   ${total:,.2f}\n"
-
-        sueldos_total = sum(float(emp.get("sueldo", 0)) for emp in empleados)
-        sueldos_texto = "\n".join(f"{emp.get('nombre', 'Desconocido'):<12}   -   ${float(emp.get('sueldo',0)):,.2f}" for emp in empleados)
-
-        prestamos_texto = ""
-        total_prestamos_pagados = 0
-        if self.pagos_prestamos_temp:
-            prestamos_texto = "\nPréstamos Pagados:\n"
-            for nombre_emp, pago in self.pagos_prestamos_temp.items():
-                prestamos_texto += f"{nombre_emp:<12}   +   ${pago:,.2f}\n"
-                total_prestamos_pagados += pago
-
+        # Calcular totales
+        total_ventas = sum(float(corte.get("total",0)) for corte in cortes_diarios)
+        sueldos_total = sum(float(emp.get("sueldo",0)) for emp in empleados)
+        total_prestamos_pagados = sum(self.pagos_prestamos_temp.values())
         total_ganancias = total_ventas - sueldos_total + total_prestamos_pagados
+
+        # Crear resumen de texto
+        dias_texto = "\n".join(f"Día {i+1:<6}   +   ${float(corte.get('total',0)):.2f}" 
+                            for i, corte in enumerate(cortes_diarios))
+        sueldos_texto = "\n".join(f"{emp.get('nombre','Desconocido'):<12}   -   ${float(emp.get('sueldo',0)):.2f}" 
+                                for emp in empleados)
+        prestamos_texto = "\n".join(f"{nombre:<12}   +   ${pago:.2f}" 
+                                    for nombre, pago in self.pagos_prestamos_temp.items())
 
         resumen_texto = (
             "Resumen Corte Semanal:\n\n"
-            f"{dias_texto}\n"
-            f"Sueldos:\n{sueldos_texto}\n"
-            f"{prestamos_texto}\n"
-            f"Total Ganancias: ${total_ganancias:,.2f}"
+            f"{dias_texto}\n\n"
+            f"Sueldos:\n{sueldos_texto}\n\n"
+            f"Préstamos Pagados:\n{prestamos_texto}\n\n"
+            f"Total Ganancias: ${total_ganancias:.2f}"
         )
 
-        # -----------------------------
-        # Mostrar popup con resumen
-        # -----------------------------
-        popup = Popup(title="Resumen Corte Semanal", content=Label(text=resumen_texto), size_hint=(0.8, 0.8))
+        # Mostrar popup
+        popup = Popup(title="Resumen Corte Semanal", content=Label(text=resumen_texto), size_hint=(0.8,0.8))
+        
+
+        def al_cerrar(instance):
+            self.mostrar_vista_cortes()  # Recarga todo, incluyendo los botones
+            self.pagos_prestamos_temp.clear()
+
+        popup.bind(on_dismiss=al_cerrar)
         popup.open()
 
-        # -----------------------------
-        # Cerrar corte semanal en API
-        # -----------------------------
+        # Enviar corte a la API
         data = {
             "total_ventas_semana": total_ventas,
             "total_sueldos": sueldos_total,
@@ -252,11 +273,7 @@ class CorteSemanalScreen(Screen):
             "total_ganancias": total_ganancias,
             "cortes_diarios_usados": [corte.get("id") for corte in cortes_diarios]
         }
-
-        resp = requests.post(f"{API_BASE}/{self.tienda_id}/cortes/semanales", json=data)
-        if resp.status_code == 200:
-            self.pagos_prestamos_temp.clear()
-            Clock.schedule_once(lambda dt: self.mostrar_vista_cortes(), 0.5)
+        requests.post(f"{API_BASE}/{self.tienda_id}/cortes/semanales", json=data)
 
     # ---------------------
     # FUNCIONES AUX

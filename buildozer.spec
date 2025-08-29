@@ -14,12 +14,11 @@ source.include_patterns = screens/**/*, assets/**/*
 main.py = main.py
 
 # Librerías necesarias
-# Forzamos rapidfuzz a versión estable compatible con p4a
 requirements = python3,kivy,pytz,fuzzywuzzy,requests
 
 
 # Icono de la app
-icon.filename = assets/icono.png
+icon.filename = screens/assets/icono.ico
 
 # Orientación de la app
 orientation = portrait
@@ -34,8 +33,6 @@ version = 0.1
 fullscreen = 0
 presplash.filename = 
 
-# Forzar inclusión de módulos con binarios compilados
-#p4a.whitelist = rapidfuzz,rapidfuzz.*
 
 [buildozer]
 

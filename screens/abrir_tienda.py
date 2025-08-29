@@ -5,6 +5,8 @@ from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 from kivy.clock import Clock
 from kivy.app import App
+import uuid
+#from jnius import autoclass
 from kivy.graphics import Rectangle
 import requests
 from kivy.resources import resource_add_path
@@ -12,13 +14,43 @@ import re
 import os
 from datetime import datetime, timedelta
 
+import sys
+if sys.platform == "win32":
+    class Dummy:
+        def __getattr__(self, name):
+            return lambda *a, **k: None
+    autoclass = lambda name: Dummy()
+    print("✅ abrir_tienda.py cargado, usando mock de PyJNIus en Windows")
+else:
+    from jnius import autoclass
+
+
 API_URL = "https://mi-caja-api.onrender.com/tiendas"
+
+def get_device_uuid():
+    try:
+        # Método Android nativo (ANDROID_ID)
+        Secure = autoclass('android.provider.Settings$Secure')
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        context = PythonActivity.mActivity.getContentResolver()
+        android_id = Secure.getString(context, Secure.ANDROID_ID)
+        return android_id
+    except:
+        # Fallback universal: generar un UUID persistente en disco
+        app_data_dir = App.get_running_app().user_data_dir
+        uuid_path = os.path.join(app_data_dir, "device_uuid.txt")
+        if os.path.exists(uuid_path):
+            with open(uuid_path, "r") as f:
+                return f.read().strip()
+        new_uuid = str(uuid.uuid4())
+        with open(uuid_path, "w") as f:
+            f.write(new_uuid)
+        return new_uuid
 
 class AbrirTiendaScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # Definir ruta para guardar login automático (PC y Android)
         app_data_dir = App.get_running_app().user_data_dir
         os.makedirs(app_data_dir, exist_ok=True)
         self.TXT_PATH = os.path.join(app_data_dir, "tienda.txt")
@@ -28,38 +60,45 @@ class AbrirTiendaScreen(Screen):
         # Fondo con canvas
         with self.canvas.before:
             self.fondo_rect = Rectangle(source="fondo.png", pos=self.pos, size=self.size)
-
-        # Actualizar el tamaño del fondo al cambiar tamaño o posición
         self.bind(size=self._update_rect, pos=self._update_rect)
 
-        # Layout principal encima del fondo
-        layout = BoxLayout(orientation='vertical', padding=40, spacing=15,
-                           size_hint=(0.8, 0.7),
-                           pos_hint={'center_x': 0.5, 'center_y': 0.5})
+        # Layout principal
+        layout = BoxLayout(
+            orientation='vertical',
+            padding=[20, 20, 20, 20],  # margen interno adaptable
+            spacing=15,
+            size_hint=(0.9, 0.9),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5}
+        )
 
-        layout.add_widget(Label(text="Abrir Tienda", font_size=24))
-        layout.add_widget(Label(text="Nombre de la tienda"))
-        self.nombre_input = TextInput(multiline=False)
+        # Título
+        layout.add_widget(Label(text="Abrir Tienda", font_size='24sp', size_hint=(1, None), height='40dp'))
+
+        # Nombre
+        layout.add_widget(Label(text="Nombre de la tienda", size_hint=(1, None), height='30dp'))
+        self.nombre_input = TextInput(multiline=False, size_hint=(1, None), height='40dp')
         layout.add_widget(self.nombre_input)
 
-        layout.add_widget(Label(text="Contraseña"))
-        self.contra_input = TextInput(password=True, multiline=False)
+        # Contraseña
+        layout.add_widget(Label(text="Contraseña", size_hint=(1, None), height='30dp'))
+        self.contra_input = TextInput(password=True, multiline=False, size_hint=(1, None), height='40dp')
         layout.add_widget(self.contra_input)
 
-        self.msg = Label(text="", color=(1, 0, 0, 1))
+        # Mensaje de error o éxito
+        self.msg = Label(text="", color=(1, 0, 0, 1), size_hint=(1, None), height='30dp')
         layout.add_widget(self.msg)
 
-        btn_abrir = Button(text="Abrir Tienda", size_hint=(1, None), height=40)
+        # Botones
+        btn_abrir = Button(text="Abrir Tienda", size_hint=(1, None), height='45dp')
         btn_abrir.bind(on_press=self.abrir_tienda)
         layout.add_widget(btn_abrir)
 
-        btn_volver = Button(text="Volver", size_hint=(1, None), height=40)
+        btn_volver = Button(text="Volver", size_hint=(1, None), height='45dp')
         btn_volver.bind(on_press=self.volver)
         layout.add_widget(btn_volver)
 
         self.add_widget(layout)
 
-        # Intentar abrir tienda automáticamente si hay login guardado
         Clock.schedule_once(lambda dt: self.auto_abrir_tienda(), 0)
 
     def _update_rect(self, *args):
@@ -75,14 +114,12 @@ class AbrirTiendaScreen(Screen):
                 nombre, contra, ts = line.split(",")
                 ts = datetime.fromisoformat(ts)
         except Exception:
-            return  # Si falla leer, ignoramos
+            return
 
-        # Si pasaron más de 8 horas, eliminar archivo
         if datetime.now() - ts > timedelta(hours=8):
             os.remove(self.TXT_PATH)
             return
 
-        # Abrir tienda automáticamente
         self._abrir_tienda(nombre, contra)
 
     def abrir_tienda(self, instance):
@@ -91,7 +128,6 @@ class AbrirTiendaScreen(Screen):
         if not nombre or not contra:
             self.msg.text = "Por favor llena todos los campos"
             return
-
         self._abrir_tienda(nombre, contra)
 
     def _abrir_tienda(self, nombre, contra):
@@ -110,11 +146,23 @@ class AbrirTiendaScreen(Screen):
             if tienda.get("password", "").strip() == contra.strip():
                 self.msg.text = "Tienda abierta correctamente"
 
-                # Guardar login automático
                 with open(self.TXT_PATH, "w") as f:
                     f.write(f"{nombre},{contra},{datetime.now().isoformat()}")
 
-                # Pasar datos a otras pantallas
+                with open(self.TXT_PATH, "w") as f:
+                    f.write(f"{nombre},{contra},{datetime.now().isoformat()}")
+
+                # 🔹 Registrar dispositivo en la API
+                try:
+                    uuid_dispositivo = get_device_uuid()
+                    requests.post(
+                        f"{API_URL}/{tienda_id}/dispositivos/",
+                        json={"uuid": uuid_dispositivo}
+                    )
+                    print(f"✅ Dispositivo registrado en tienda {tienda_id}: {uuid_dispositivo}")
+                except Exception as e:
+                    print("⚠️ Error al registrar dispositivo:", e)
+
                 if self.manager:
                     try:
                         pantalla_principal = self.manager.get_screen("pantalla_principal")

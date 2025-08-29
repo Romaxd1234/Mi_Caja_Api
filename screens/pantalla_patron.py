@@ -5,9 +5,10 @@ from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.togglebutton import ToggleButton
 from kivy.uix.button import Button
-from kivy.uix.image import Image
-from kivy.graphics import Rectangle, Color
+from kivy.uix.widget import Widget
+from kivy.graphics import Rectangle
 from kivy.resources import resource_add_path
+from kivy.metrics import dp
 import os
 import requests
 
@@ -32,47 +33,47 @@ class PantallaPatronScreen(Screen):
         # Layout del formulario
         self.layout = BoxLayout(
             orientation='vertical',
-            padding=40,
-            spacing=15,
-            size_hint=(0.6, 0.8),
+            padding=dp(20),
+            spacing=dp(12),
+            size_hint=(0.8, 0.85),
             pos_hint={'center_x': 0.5, 'center_y': 0.55}
         )
 
         # Saludo
-        self.saludo_label = Label(text="Hola, Patrón", font_size=24, size_hint_y=None, height=40)
+        self.saludo_label = Label(text="Hola, Patrón", font_size=dp(22), size_hint_y=None, height=dp(40))
         self.layout.add_widget(self.saludo_label)
 
         # Nombre
-        self.layout.add_widget(Label(text="Nombre del patrón"))
-        self.nombre_input = TextInput(multiline=False, size_hint_y=None, height=40)
+        self.layout.add_widget(Label(text="Nombre del patrón", font_size=dp(16), size_hint_y=None, height=dp(25)))
+        self.nombre_input = TextInput(multiline=False, size_hint_y=None, height=dp(45), font_size=dp(16))
         self.layout.add_widget(self.nombre_input)
 
         # Contraseña
-        self.layout.add_widget(Label(text="Crear contraseña"))
-        self.pass_layout = BoxLayout(size_hint_y=None, height=40)
-        self.pass_input = TextInput(password=True, multiline=False)
+        self.layout.add_widget(Label(text="Crear contraseña", font_size=dp(16), size_hint_y=None, height=dp(25)))
+        self.pass_layout = BoxLayout(size_hint_y=None, height=dp(45), spacing=dp(5))
+        self.pass_input = TextInput(password=True, multiline=False, font_size=dp(16))
         self.pass_layout.add_widget(self.pass_input)
-        self.show_pass_btn = ToggleButton(text="👁", size_hint_x=None, width=50)
+        self.show_pass_btn = ToggleButton(text="👁", size_hint_x=None, width=dp(50))
         self.show_pass_btn.bind(on_press=self.toggle_password)
         self.pass_layout.add_widget(self.show_pass_btn)
         self.layout.add_widget(self.pass_layout)
 
         # Confirmar contraseña
-        self.layout.add_widget(Label(text="Confirmar contraseña"))
-        self.pass_confirm_layout = BoxLayout(size_hint_y=None, height=40)
-        self.pass_confirm_input = TextInput(password=True, multiline=False)
+        self.layout.add_widget(Label(text="Confirmar contraseña", font_size=dp(16), size_hint_y=None, height=dp(25)))
+        self.pass_confirm_layout = BoxLayout(size_hint_y=None, height=dp(45), spacing=dp(5))
+        self.pass_confirm_input = TextInput(password=True, multiline=False, font_size=dp(16))
         self.pass_confirm_layout.add_widget(self.pass_confirm_input)
-        self.show_pass_confirm_btn = ToggleButton(text="👁", size_hint_x=None, width=50)
+        self.show_pass_confirm_btn = ToggleButton(text="👁", size_hint_x=None, width=dp(50))
         self.show_pass_confirm_btn.bind(on_press=self.toggle_password_confirm)
         self.pass_confirm_layout.add_widget(self.show_pass_confirm_btn)
         self.layout.add_widget(self.pass_confirm_layout)
 
         # Mensaje de error/éxito
-        self.msg = Label(text="", color=(1, 0, 0, 1), size_hint_y=None, height=30)
+        self.msg = Label(text="", color=(1, 0, 0, 1), size_hint_y=None, height=dp(30), font_size=dp(16))
         self.layout.add_widget(self.msg)
 
         # Botón registrar
-        self.btn_registrar = Button(text="Registrar Patrón", size_hint_y=None, height=50)
+        self.btn_registrar = Button(text="Registrar Patrón", size_hint_y=None, height=dp(50), font_size=dp(16))
         self.btn_registrar.bind(on_press=self.registrar_patron)
         self.layout.add_widget(self.btn_registrar)
 
@@ -81,8 +82,9 @@ class PantallaPatronScreen(Screen):
         # Botón volver
         self.btn_volver = Button(
             text="Volver",
-            size_hint=(0.2, 0.08),
-            pos_hint={'x': 0.02, 'y': 0.02}
+            size_hint=(0.22, 0.08),
+            pos_hint={'x': 0.02, 'y': 0.02},
+            font_size=dp(16)
         )
         self.btn_volver.bind(on_release=self.volver)
         self.layout_principal.add_widget(self.btn_volver)
@@ -146,7 +148,6 @@ class PantallaPatronScreen(Screen):
             self.msg.text = "Error: no se encontró la tienda actual."
             return
 
-        # Hacer POST a la API
         try:
             response = requests.post(
                 f"{API_URL}/{self.tienda_id}/patron/",

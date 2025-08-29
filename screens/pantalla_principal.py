@@ -1,5 +1,7 @@
 from kivy.uix.screenmanager import Screen
 from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.textinput import TextInput
+from kivy.uix.popup import Popup
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
@@ -8,6 +10,7 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.resources import resource_add_path
 from kivy.clock import Clock
 from kivy.graphics import Rectangle
+from kivy.metrics import dp, sp
 import os
 import requests
 from datetime import datetime
@@ -23,16 +26,10 @@ class VentanaPrincipal(Screen):
         self.layout = FloatLayout()
         self.add_widget(self.layout)
 
-    def configurar_sesion(self, origen, nombre, tienda_id=None):
-        self.origen_login = origen
-        self.nombre_usuario = nombre
-        self.tienda_id = tienda_id
-
     def on_pre_enter(self):
-        if self.inicializado:
-            return
-        self.inicializado = True
+        # Limpiar todo siempre
         self.layout.clear_widgets()
+        self.inicializado = True  # ya estamos inicializando
 
         # ------------------------
         # Fondo con canvas
@@ -43,6 +40,7 @@ class VentanaPrincipal(Screen):
             self.fondo_rect = Rectangle(source="fondo.png", pos=self.layout.pos, size=self.layout.size)
         self.layout.bind(size=self._update_rect, pos=self._update_rect)
 
+        self.cargar_tienda_api()
         # ------------------------
         # Nombre de la tienda
         self.nombre_tienda = "Tienda"
@@ -58,9 +56,9 @@ class VentanaPrincipal(Screen):
 
         self.label_tienda = Label(
             text=f"[b]{self.nombre_tienda}[/b]",
-            font_size='20sp',
+            font_size=sp(20),
             size_hint=(.9, None),
-            height=40,
+            height=dp(40),
             pos_hint={"x": 0.05, "top": 0.98},
             color=(0, 0, 0, 1),
             markup=True
@@ -72,9 +70,9 @@ class VentanaPrincipal(Screen):
         if self.origen_login == "empleado" and self.nombre_usuario:
             self.label_usuario = Label(
                 text=f"Hola, {self.nombre_usuario}",
-                font_size='16sp',
+                font_size=sp(16),
                 size_hint=(.9, None),
-                height=30,
+                height=dp(30),
                 pos_hint={"x": 0.05, "top": 0.90},
                 color=(0, 0, 0, 1)
             )
@@ -84,9 +82,9 @@ class VentanaPrincipal(Screen):
         # Reloj
         self.label_hora = Label(
             text="",
-            font_size='18sp',
+            font_size=sp(18),
             size_hint=(.9, None),
-            height=30,
+            height=dp(30),
             pos_hint={"x": 0.05, "y": 0.02},
             color=(1, 1, 1, 1)
         )
@@ -96,7 +94,7 @@ class VentanaPrincipal(Screen):
         # ------------------------
         # Botones principales con ScrollView
         scroll_layout = ScrollView(size_hint=(0.25, 0.75), pos_hint={"x": 0.02, "top": 0.85})
-        grid_botones = GridLayout(cols=1, spacing=10, size_hint_y=None)
+        grid_botones = GridLayout(cols=1, spacing=dp(10), size_hint_y=None)
         grid_botones.bind(minimum_height=grid_botones.setter('height'))
 
         botones_info = [
@@ -111,9 +109,9 @@ class VentanaPrincipal(Screen):
             btn = Button(
                 text=texto,
                 size_hint=(1, None),
-                height=50,
-                font_size='14sp',
-                text_size=(None, 50),
+                height=dp(50),
+                font_size=sp(14),
+                text_size=(None, dp(50)),
                 halign='center',
                 valign='middle'
             )
@@ -123,9 +121,9 @@ class VentanaPrincipal(Screen):
         btn_cerrar_sesion = Button(
             text="Cerrar Sesión",
             size_hint=(1, None),
-            height=50,
-            font_size='14sp',
-            text_size=(None, 50),
+            height=dp(50),
+            font_size=sp(14),
+            text_size=(None, dp(50)),
             halign='center',
             valign='middle',
             background_color=(1, 0, 0, 1)
@@ -138,9 +136,9 @@ class VentanaPrincipal(Screen):
             btn_semana = Button(
                 text="Registro\nSemanal",
                 size_hint=(1, None),
-                height=50,
-                font_size='14sp',
-                text_size=(None, 50),
+                height=dp(50),
+                font_size=sp(14),
+                text_size=(None, dp(50)),
                 halign='center',
                 valign='middle'
             )
@@ -152,9 +150,9 @@ class VentanaPrincipal(Screen):
             btn_emp = Button(
                 text="Empleados",
                 size_hint=(1, None),
-                height=50,
-                font_size='14sp',
-                text_size=(None, 50),
+                height=dp(50),
+                font_size=sp(14),
+                text_size=(None, dp(50)),
                 halign='center',
                 valign='middle'
             )
@@ -179,9 +177,9 @@ class VentanaPrincipal(Screen):
     # ------------------------
     # Métodos de popups adaptados a tamaño de pantalla
     def mostrar_popup(self, titulo, mensaje):
-        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        contenido.add_widget(Label(text=mensaje))
-        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=40)
+        contenido = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
+        contenido.add_widget(Label(text=mensaje, font_size=sp(14)))
+        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=dp(40), font_size=sp(14))
         contenido.add_widget(btn_cerrar)
 
         popup = Popup(title=titulo, content=contenido,
@@ -195,11 +193,13 @@ class VentanaPrincipal(Screen):
         self.nombre_usuario = ""
         self.tienda_id = None
         self.origen_login = ""
+        self.inicializado = False  # 🔹 importante para reconstruir la pantalla
+        self.layout.clear_widgets()  # Limpiar todo el layout
 
-        # Mostrar popup primero
-        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        contenido.add_widget(Label(text="Has cerrado sesión correctamente."))
-        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=40)
+        # Mostrar popup de cierre
+        contenido = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
+        contenido.add_widget(Label(text="Has cerrado sesión correctamente.", font_size=sp(14)))
+        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=dp(40), font_size=sp(14))
         contenido.add_widget(btn_cerrar)
 
         popup = Popup(title="Sesión cerrada", content=contenido,
@@ -207,52 +207,77 @@ class VentanaPrincipal(Screen):
 
         def cerrar_popup(instance_btn):
             popup.dismiss()
-            # Cambiar a login después de cerrar popup
             self.manager.current = 'seleccion_rol'
 
         btn_cerrar.bind(on_release=cerrar_popup)
         popup.open()
 
-
-
     def mostrar_popup_confirmacion(self):
-        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        contenido.add_widget(Label(text="Venta registrada correctamente."))
+        contenido = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
+        contenido.add_widget(Label(text="Venta registrada correctamente.", font_size=sp(16)))
 
-        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=40)
+        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=dp(40), font_size=sp(14))
         contenido.add_widget(btn_cerrar)
 
-        popup = Popup(title='Confirmación', content=contenido,
-                      size_hint=(0.9, 0.5),
-                      auto_dismiss=False)
+        popup = Popup(
+            title='Confirmación',
+            content=contenido,
+            size_hint=(0.9, 0.5),
+            auto_dismiss=False
+        )
+
         btn_cerrar.bind(on_release=popup.dismiss)
         popup.open()
 
 
     def abrir_venta(self, instance):
-        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        contenido = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
 
         self.ventas_temporales = []
 
-        self.grid_ventas = GridLayout(cols=2, size_hint_y=None, spacing=5)
+        self.grid_ventas = GridLayout(cols=2, size_hint_y=None, spacing=dp(5))
         self.grid_ventas.bind(minimum_height=self.grid_ventas.setter('height'))
+
         scroll_ventas = ScrollView(size_hint=(1, 0.5))
         scroll_ventas.add_widget(self.grid_ventas)
         contenido.add_widget(scroll_ventas)
 
-        self.label_total = Label(text="TOTAL = $0.00", size_hint_y=None, height=30)
+        self.label_total = Label(text="TOTAL = $0.00", size_hint_y=None, height=dp(30), font_size=sp(14))
         contenido.add_widget(self.label_total)
 
-        self.input_producto = TextInput(hint_text="Producto", multiline=False, size_hint=(1, None), height=40)
+        self.input_producto = TextInput(
+            hint_text="Producto",
+            multiline=False,
+            size_hint=(1, None),
+            height=dp(40),
+            font_size=sp(14)
+        )
         contenido.add_widget(self.input_producto)
 
-        self.input_precio = TextInput(hint_text="Precio", multiline=False, input_filter='float', size_hint=(1, None), height=40)
+        self.input_precio = TextInput(
+            hint_text="Precio",
+            multiline=False,
+            input_filter='float',
+            size_hint=(1, None),
+            height=dp(40),
+            font_size=sp(14)
+        )
         contenido.add_widget(self.input_precio)
 
-        btn_agregar_producto = Button(text="Agregar Producto", size_hint=(1, None), height=40)
+        btn_agregar_producto = Button(
+            text="Agregar Producto",
+            size_hint=(1, None),
+            height=dp(40),
+            font_size=sp(14)
+        )
         contenido.add_widget(btn_agregar_producto)
 
-        btn_registrar = Button(text="Registrar Venta", size_hint=(1, None), height=40)
+        btn_registrar = Button(
+            text="Registrar Venta",
+            size_hint=(1, None),
+            height=dp(40),
+            font_size=sp(14)
+        )
         contenido.add_widget(btn_registrar)
 
         popup = Popup(title="Registrar Venta", content=contenido, size_hint=(0.9, 0.9))
@@ -261,12 +286,29 @@ class VentanaPrincipal(Screen):
         def actualizar_lista_productos():
             self.grid_ventas.clear_widgets()
             for prod, precio in self.ventas_temporales:
-                label_prod = Label(text=prod, size_hint_y=None, height=30, halign='left', valign='middle')
+                label_prod = Label(
+                    text=prod,
+                    size_hint_y=None,
+                    height=dp(30),
+                    halign='left',
+                    valign='middle',
+                    font_size=sp(14)
+                )
                 label_prod.text_size = (label_prod.width, None)
-                label_precio = Label(text=f"${precio:.2f}", size_hint_y=None, height=30, halign='right', valign='middle')
+
+                label_precio = Label(
+                    text=f"${precio:.2f}",
+                    size_hint_y=None,
+                    height=dp(30),
+                    halign='right',
+                    valign='middle',
+                    font_size=sp(14)
+                )
                 label_precio.text_size = (label_precio.width, None)
+
                 self.grid_ventas.add_widget(label_prod)
                 self.grid_ventas.add_widget(label_precio)
+
             total = sum(p for _, p in self.ventas_temporales)
             self.label_total.text = f"TOTAL = ${total:.2f}"
 
@@ -292,7 +334,6 @@ class VentanaPrincipal(Screen):
 
             import requests
 
-            # 🔹 Payload correcto según la API
             payload = {
                 "usuario": self.nombre_usuario,
                 "fuera_inventario": True,
@@ -309,25 +350,20 @@ class VentanaPrincipal(Screen):
                     popup.dismiss()
                     self.ventas_temporales = []
                     self.mostrar_popup_confirmacion()
-
                 elif respuesta.status_code == 422:
-                    # Muestra detalle de errores de validación
                     errores = respuesta.json().get("detail", [])
                     mensaje = "\n".join([f"{e.get('loc', '')}: {e.get('msg', '')}" for e in errores])
                     self.mostrar_popup("Error de Validación", mensaje or "Datos no válidos")
-
                 else:
                     self.mostrar_popup("Error", f"Error desconocido: {respuesta.status_code}")
 
             except requests.exceptions.RequestException as e:
                 self.mostrar_popup("Error", f"No se pudo conectar al servidor:\n{e}")
 
-
         # Asignar las funciones a los botones
         btn_agregar_producto.bind(on_release=agregar_producto)
         btn_registrar.bind(on_release=registrar_venta)
 
-        # Abrir el popup
         popup.open()
 
     def guardar_venta(self, producto, precio, fuera_inventario=False):
@@ -372,6 +408,20 @@ class VentanaPrincipal(Screen):
 
         print(f"Venta registrada: {producto} - ${precio} - Hora: {fecha_local}")
 
+    def configurar_sesion(self, empleado=None, tienda=None, tienda_id=None, nombre=None, origen=None):
+        """Configura la sesión del empleado y la tienda en la pantalla principal"""
+        self.empleado_actual = empleado
+        self.tienda_actual = tienda
+        if tienda_id is not None:
+            self.tienda_id = tienda_id
+        if nombre is not None:
+            self.nombre_usuario = nombre
+        if origen is not None:
+            self.origen_login = origen
+
+        print(f"Sesión iniciada para {nombre} en tienda {tienda_id} (origen={origen})")
+
+
 
     def ir_a_inventario(self, instance):
         self.manager.current = 'inventario'
@@ -407,6 +457,9 @@ class VentanaPrincipal(Screen):
 
     def set_tienda_id(self, tienda_id):
         self.tienda_id = tienda_id
+        # Intentar cargar inmediatamente el nombre de la tienda
+        self.cargar_tienda_api()
+
 
     def cargar_empleados_api(self):
         if not self.tienda_id:
@@ -424,32 +477,66 @@ class VentanaPrincipal(Screen):
         except Exception as e:
             print("Error al cargar empleados:", e)
     def mostrar_alerta_prestamo(self, mensaje):
-        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        contenido.add_widget(Label(text=mensaje))
-        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=40)
+        contenido = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
+        contenido.add_widget(Label(text=mensaje, font_size=sp(14)))
+
+        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=dp(40), font_size=sp(14))
         contenido.add_widget(btn_cerrar)
 
         popup = Popup(title='Préstamo Realizado', content=contenido,
-                      size_hint=(0.6, 0.4))
+                    size_hint=(0.6, 0.4))
         btn_cerrar.bind(on_release=popup.dismiss)
         popup.open()
+
+    def cargar_tienda_api(self):
+        """Carga el nombre de la tienda desde la API usando self.tienda_id"""
+        if not hasattr(self, "tienda_id") or not self.tienda_id:
+            self.nombre_tienda = "Tienda"
+            self.tienda_actual = None
+            return False
+
+        try:
+            url = f"{API_URL}/{self.tienda_id}"
+            respuesta = requests.get(url, timeout=5)
+            respuesta.raise_for_status()
+            datos = respuesta.json()
+            self.nombre_tienda = datos.get("nombre", "Tienda").strip("*")
+            self.tienda_actual = datos  # <--- aquí asignamos la tienda completa
+            if hasattr(self, "label_tienda"):
+                self.label_tienda.text = f"[b]{self.nombre_tienda}[/b]"
+            return True
+        except requests.RequestException as e:
+            print("Error al cargar tienda desde API:", e)
+            self.nombre_tienda = "Tienda"
+            self.tienda_actual = None
+            return False
 
     # --- NUEVO MÉTODO para revisar préstamo pendiente ---
 
     def abrir_popup_corte(self, instance):
-        layout = BoxLayout(orientation='vertical', spacing=10, padding=20)
+        layout = BoxLayout(orientation='vertical', spacing=dp(10), padding=dp(20))
 
-        label = Label(text="¿Qué tipo de corte deseas realizar?", size_hint_y=None, height=40)
-        btn_diario = Button(text="Corte Diario", size_hint_y=None, height=40)
-        btn_semanal = Button(text="Corte Semanal", size_hint_y=None, height=40)
-        btn_cancelar = Button(text="Cancelar", size_hint_y=None, height=40)
+        label = Label(
+            text="¿Qué tipo de corte deseas realizar?",
+            size_hint_y=None,
+            height=dp(40),
+            font_size=sp(16)
+        )
+        btn_diario = Button(text="Corte Diario", size_hint_y=None, height=dp(40), font_size=sp(14))
+        btn_semanal = Button(text="Corte Semanal", size_hint_y=None, height=dp(40), font_size=sp(14))
+        btn_cancelar = Button(text="Cancelar", size_hint_y=None, height=dp(40), font_size=sp(14))
 
         layout.add_widget(label)
         layout.add_widget(btn_diario)
         layout.add_widget(btn_semanal)
         layout.add_widget(btn_cancelar)
 
-        popup = Popup(title="Seleccionar corte", content=layout, size_hint=(None, None), size=(300, 300), auto_dismiss=False)
+        popup = Popup(
+            title="Seleccionar corte",
+            content=layout,
+            size_hint=(0.8, 0.5),  # Adaptable al tamaño de pantalla
+            auto_dismiss=False
+        )
 
         def corte_diario(instance_btn):
             popup.dismiss()
@@ -497,28 +584,35 @@ class VentanaPrincipal(Screen):
 
 
     def mostrar_popup_confirmacion(self):
-        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        contenido.add_widget(Label(text="Venta registrada correctamente."))
+        contenido = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
+        contenido.add_widget(Label(text="Venta registrada correctamente.", font_size=sp(14)))
 
-        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=40)
+        btn_cerrar = Button(text='Cerrar', size_hint=(1, None), height=dp(40), font_size=sp(14))
         contenido.add_widget(btn_cerrar)
 
-        popup = Popup(title='Confirmación', content=contenido,
-                    size_hint=(0.5, 0.4),
-                    auto_dismiss=False)
+        popup = Popup(
+            title='Confirmación',
+            content=contenido,
+            size_hint=(0.6, 0.4),  # tamaño relativo a la pantalla
+            auto_dismiss=False
+        )
         btn_cerrar.bind(on_release=popup.dismiss)
         popup.open()
 
     # --- NUEVO MÉTODO para mostrar popup persistente ---
     def mostrar_popup_prestamo(self, mensaje):
-        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        contenido.add_widget(Label(text=mensaje))
-        btn_aceptar = Button(text='Aceptar', size_hint=(1, None), height=40)
+        contenido = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(10))
+        contenido.add_widget(Label(text=mensaje, font_size=sp(14)))
+
+        btn_aceptar = Button(text='Aceptar', size_hint=(1, None), height=dp(40), font_size=sp(14))
         contenido.add_widget(btn_aceptar)
 
-        self.popup_prestamo = Popup(title='Préstamo Pendiente', content=contenido,
-                                   size_hint=(0.6, 0.4),
-                                   auto_dismiss=False)  # No se cierra tocando afuera
+        self.popup_prestamo = Popup(
+            title='Préstamo Pendiente',
+            content=contenido,
+            size_hint=(0.6, 0.4),  # tamaño relativo a la pantalla
+            auto_dismiss=False  # No se cierra tocando afuera
+        )
 
         def aceptar_prestamo(instance):
             self.marcar_prestamo_como_atendido()

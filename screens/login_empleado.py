@@ -9,7 +9,8 @@ from kivy.resources import resource_add_path
 from kivy.uix.popup import Popup
 from kivy.clock import Clock
 from kivy.app import App
-from kivy.graphics import Rectangle
+from kivy.graphics import Rectangle, Color
+from kivy.metrics import dp, sp
 import requests
 import os
 from datetime import datetime, timedelta
@@ -32,27 +33,39 @@ class LoginEmpleadoScreen(Screen):
         # Fondo con canvas
         ruta_assets = os.path.join(os.path.dirname(__file__), "assets")
         resource_add_path(ruta_assets)
-
         with self.layout.canvas.before:
+            Color(1, 1, 1, 1)  # Fondo blanco si no carga la imagen
             self.fondo_rect = Rectangle(source="fondo.png", pos=self.layout.pos, size=self.layout.size)
         self.layout.bind(size=self._update_rect, pos=self._update_rect)
 
         # Contenedor principal
         cont = BoxLayout(
-            orientation='vertical', spacing=20,
-            size_hint=(0.8, 0.5), pos_hint={'center_x': 0.5, 'center_y': 0.5}
+            orientation='vertical', spacing=dp(15),
+            size_hint=(0.85, 0.55), pos_hint={'center_x': 0.5, 'center_y': 0.5},
+            padding=[dp(20), dp(20), dp(20), dp(20)]
         )
         self.layout.add_widget(cont)
 
         # Título
-        self.label_saludo = Label(text="Hola buen día", font_size=32, size_hint=(1, 0.3), color=(0,0,0,1))
+        self.label_saludo = Label(
+            text="👋 Hola, buen día",
+            font_size=sp(28),
+            size_hint=(1, 0.3),
+            color=(0.1, 0.1, 0.1, 1),
+            halign="center",
+            valign="middle"
+        )
+        self.label_saludo.bind(size=self.label_saludo.setter('text_size'))
         cont.add_widget(self.label_saludo)
 
         # Spinner para empleados
         self.spinner_empleados = Spinner(
             text="Cargando empleados...",
             values=[],
-            size_hint=(1, 0.3)
+            size_hint=(1, 0.25),
+            background_color=(0.9, 0.9, 0.95, 1),
+            color=(0,0,0,1),
+            font_size=sp(16)
         )
         cont.add_widget(self.spinner_empleados)
 
@@ -61,19 +74,32 @@ class LoginEmpleadoScreen(Screen):
             hint_text="Contraseña",
             password=True,
             multiline=False,
-            size_hint=(1, 0.3)
+            size_hint=(1, 0.25),
+            font_size=sp(16),
+            padding=[dp(10), dp(10)],
+            background_color=(0.95, 0.95, 0.95, 1),
+            foreground_color=(0,0,0,1)
         )
         cont.add_widget(self.input_password)
 
         # Botón iniciar sesión
-        self.boton_login = Button(text="Iniciar sesión", size_hint=(1, 0.3))
+        self.boton_login = Button(
+            text="Iniciar sesión",
+            size_hint=(1, 0.3),
+            font_size=sp(16),
+            background_color=(0.2, 0.6, 1, 1),
+            color=(1,1,1,1)
+        )
         cont.add_widget(self.boton_login)
 
         # Botón volver
         self.boton_volver = Button(
             text="Volver",
-            size_hint=(0.15, 0.08),
-            pos_hint={'x': 0.02, 'y': 0.02}
+            size_hint=(0.25, 0.08),
+            pos_hint={'x': 0.02, 'y': 0.02},
+            background_color=(0.7, 0.7, 0.7, 1),
+            color=(0,0,0,1),
+            font_size=sp(14)
         )
         self.layout.add_widget(self.boton_volver)
 
@@ -189,11 +215,11 @@ class LoginEmpleadoScreen(Screen):
 
     # --- Popups ---
     def mostrar_popup(self, titulo, mensaje):
-        contenido = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        contenido.add_widget(Label(text=mensaje))
-        btn_cerrar = Button(text="Cerrar", size_hint=(1, 0.3))
+        contenido = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(10))
+        contenido.add_widget(Label(text=mensaje, font_size=sp(16), halign='center', valign='middle'))
+        btn_cerrar = Button(text="Cerrar", size_hint=(1, None), height=dp(45), background_color=(0.2,0.6,1,1), color=(1,1,1,1))
         contenido.add_widget(btn_cerrar)
-        popup = Popup(title=titulo, content=contenido, size_hint=(0.6, 0.4))
+        popup = Popup(title=titulo, content=contenido, size_hint=(0.75, 0.35))
         btn_cerrar.bind(on_release=popup.dismiss)
         popup.open()
 

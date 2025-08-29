@@ -8,6 +8,7 @@ from kivy.uix.button import Button
 from kivy.uix.popup import Popup
 from kivy.graphics import Rectangle
 from kivy.resources import resource_add_path
+from kivy.metrics import dp, sp
 import os
 import requests
 
@@ -28,14 +29,15 @@ class RegistroCortes(Screen):
         self.root_layout.bind(size=self._update_rect, pos=self._update_rect)
 
         # Contenedor principal
-        self.main_layout = BoxLayout(orientation="vertical", padding=10, spacing=5)
+        self.main_layout = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(5))
         self.root_layout.add_widget(self.main_layout)
 
         # Botón para volver
         self.btn_volver = Button(
             text="↩ Volver",
-            size_hint=(0.15, 0.08),
-            pos_hint={"x": 0, "y": 0}
+            size_hint=(0.2, 0.08),
+            pos_hint={"x": 0, "y": 0},
+            font_size=sp(14)
         )
         self.btn_volver.bind(on_release=self.on_volver)
         self.root_layout.add_widget(self.btn_volver)
@@ -55,10 +57,10 @@ class RegistroCortes(Screen):
 
     # ------------------- Pre-enter -------------------
     def on_pre_enter(self):
+        self.main_layout.clear_widgets()
         if not self.tienda_id:
-            self.main_layout.clear_widgets()
             self.main_layout.add_widget(
-                Label(text="No se ha seleccionado una tienda", font_size=20, size_hint_y=None, height=40)
+                Label(text="No se ha seleccionado una tienda", font_size=sp(16), size_hint_y=None, height=dp(40))
             )
             return
         self.mostrar_lista_cortes()
@@ -73,11 +75,9 @@ class RegistroCortes(Screen):
 
             cortes_diarios = []
 
-            # 🔹 Cortes diarios sueltos
             for corte in tienda.get("cortes", {}).get("diarios", []):
                 cortes_diarios.append(corte)
 
-            # 🔹 Cortes diarios dentro de bloques semanales
             for bloque in tienda.get("cortes", {}).get("semanales", []):
                 for corte_diario in bloque.get("cortes_diarios", []):
                     cortes_diarios.append(corte_diario)
@@ -97,23 +97,25 @@ class RegistroCortes(Screen):
         self.btn_volver.unbind(on_release=self.on_volver)
         self.btn_volver.bind(on_release=self.volver_a_principal)
 
-        label = Label(text="Registros de Cortes", size_hint_y=None, height=40, font_size=20)
+        label = Label(text="Registros de Cortes", size_hint_y=None, height=dp(40), font_size=sp(18))
         self.main_layout.add_widget(label)
 
         scroll = ScrollView(size_hint=(1, 1))
-        grid = GridLayout(cols=1, spacing=5, size_hint_y=None)
+        grid = GridLayout(cols=1, spacing=dp(5), size_hint_y=None)
         grid.bind(minimum_height=grid.setter("height"))
         scroll.add_widget(grid)
 
         cortes = self.obtener_cortes_desde_api()
 
         if not cortes:
-            grid.add_widget(Label(text="No hay cortes guardados.", size_hint_y=None, height=40))
+            grid.add_widget(Label(text="No hay cortes guardados.", size_hint_y=None, height=dp(40)))
         else:
             for corte in sorted(cortes, key=lambda x: x.get("fecha", ""), reverse=True):
                 btn = Button(
                     text=f"Corte {corte.get('id', '-') } - {corte.get('fecha', '-')}",
-                    size_hint_y=None, height=40
+                    size_hint_y=None,
+                    height=dp(40),
+                    font_size=sp(14)
                 )
                 btn.bind(on_release=lambda inst, c=corte: self.mostrar_detalle_corte_api(c))
                 grid.add_widget(btn)
@@ -129,26 +131,26 @@ class RegistroCortes(Screen):
         self.btn_volver.unbind(on_release=self.volver_a_principal)
         self.btn_volver.bind(on_release=self.mostrar_lista_cortes)
 
-        resumen_layout = BoxLayout(orientation="vertical", size_hint_y=None)
+        resumen_layout = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(5))
         resumen_layout.bind(minimum_height=resumen_layout.setter("height"))
 
-        resumen_layout.add_widget(Label(text=f"Corte {corte.get('id', '-')}", size_hint_y=None, height=30, font_size=18))
-        resumen_layout.add_widget(Label(text=f"Fecha: {corte.get('fecha', '-')}", size_hint_y=None, height=25))
-        resumen_layout.add_widget(Label(text=f"Hora: {corte.get('hora', '-')}", size_hint_y=None, height=25))
-        resumen_layout.add_widget(Label(text=f"Total: ${corte.get('total', 0)}", size_hint_y=None, height=25))
-        resumen_layout.add_widget(Label(text=f"Usuario: {corte.get('usuario_que_corto', '-')}", size_hint_y=None, height=25))
+        resumen_layout.add_widget(Label(text=f"Corte {corte.get('id', '-')}", size_hint_y=None, height=dp(30), font_size=sp(16)))
+        resumen_layout.add_widget(Label(text=f"Fecha: {corte.get('fecha', '-')}", size_hint_y=None, height=dp(25), font_size=sp(14)))
+        resumen_layout.add_widget(Label(text=f"Hora: {corte.get('hora', '-')}", size_hint_y=None, height=dp(25), font_size=sp(14)))
+        resumen_layout.add_widget(Label(text=f"Total: ${corte.get('total', 0)}", size_hint_y=None, height=dp(25), font_size=sp(14)))
+        resumen_layout.add_widget(Label(text=f"Usuario: {corte.get('usuario_que_corto', '-')}", size_hint_y=None, height=dp(25), font_size=sp(14)))
 
         ventas = corte.get("ventas", [])
-        resumen_layout.add_widget(Label(text="Ventas del Corte:", size_hint_y=None, height=30, font_size=16))
+        resumen_layout.add_widget(Label(text="Ventas del Corte:", size_hint_y=None, height=dp(30), font_size=sp(16)))
 
         scroll_ventas = ScrollView(size_hint=(1, 1))
-        grid_ventas = GridLayout(cols=5, spacing=5, size_hint_y=None)
+        grid_ventas = GridLayout(cols=5, spacing=dp(5), size_hint_y=None)
         grid_ventas.bind(minimum_height=grid_ventas.setter("height"))
         scroll_ventas.add_widget(grid_ventas)
 
         headers = ["Empleado", "Producto", "Tipo de Venta", "Total $", "Hora"]
         for h in headers:
-            grid_ventas.add_widget(Label(text=h, size_hint_y=None, height=30))
+            grid_ventas.add_widget(Label(text=h, size_hint_y=None, height=dp(30), font_size=sp(14)))
 
         for venta in ventas:
             usuario = venta.get("usuario", "-")
@@ -158,14 +160,14 @@ class RegistroCortes(Screen):
             hora = fecha_hora.split(" ")[1] if " " in fecha_hora else ""
 
             for prod in productos:
-                grid_ventas.add_widget(Label(text=usuario, size_hint_y=None, height=30))
+                grid_ventas.add_widget(Label(text=usuario, size_hint_y=None, height=dp(30), font_size=sp(14)))
                 cantidad = prod.get("cantidad", 1)
                 nombre_producto = prod.get("producto", "-")
-                grid_ventas.add_widget(Label(text=f"{cantidad} x {nombre_producto}", size_hint_y=None, height=30))
-                grid_ventas.add_widget(Label(text=tipo_venta, size_hint_y=None, height=30))
+                grid_ventas.add_widget(Label(text=f"{cantidad} x {nombre_producto}", size_hint_y=None, height=dp(30), font_size=sp(14)))
+                grid_ventas.add_widget(Label(text=tipo_venta, size_hint_y=None, height=dp(30), font_size=sp(14)))
                 precio = prod.get("precio", 0)
-                grid_ventas.add_widget(Label(text=f"${precio}", size_hint_y=None, height=30))
-                grid_ventas.add_widget(Label(text=hora, size_hint_y=None, height=30))
+                grid_ventas.add_widget(Label(text=f"${precio}", size_hint_y=None, height=dp(30), font_size=sp(14)))
+                grid_ventas.add_widget(Label(text=hora, size_hint_y=None, height=dp(30), font_size=sp(14)))
 
         resumen_layout.add_widget(scroll_ventas)
         self.main_layout.add_widget(resumen_layout)

@@ -6,59 +6,62 @@ from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 from kivy.uix.spinner import Spinner
 from kivy.uix.scrollview import ScrollView
-from kivy.uix.image import Image
 from kivy.uix.popup import Popup
-from kivy.resources import resource_add_path
 from kivy.graphics import Rectangle
-import os
+from kivy.metrics import dp, sp
 import requests
 
 class VentanaEmpleados(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
         # Raíz FloatLayout
         self.layout = FloatLayout()
         self.add_widget(self.layout)
 
-        # Fondo que ocupa toda la pantalla
-# Fondo que ocupa toda la pantalla
+        # Fondo
         with self.layout.canvas.before:
             self.fondo_rect = Rectangle(source="fondo.png", pos=self.layout.pos, size=self.layout.size)
         self.layout.bind(size=self._update_rect, pos=self._update_rect)
 
-        # Contenedor vertical para todos los elementos
-        self.contenedor = BoxLayout(orientation='vertical', spacing=10, padding=10,
-                                    size_hint=(0.9, 0.9), pos_hint={'center_x': 0.5, 'center_y': 0.5})
-        self.layout.add_widget(self.contenedor)  # luego el contenedor
+        # Contenedor vertical
+        self.contenedor = BoxLayout(
+            orientation='vertical',
+            spacing=dp(10),
+            padding=dp(10),
+            size_hint=(0.9, 0.9),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5}
+        )
+        self.layout.add_widget(self.contenedor)
 
         # --- Botones superiores ---
-        botones_layout = BoxLayout(size_hint=(1, None), height=40, spacing=5)
+        botones_layout = BoxLayout(size_hint=(1, None), height=dp(50), spacing=dp(5))
         self.contenedor.add_widget(botones_layout)
-        self.btn_agregar = Button(text="Agregar")
-        self.btn_editar = Button(text="Editar")
-        self.btn_eliminar = Button(text="Eliminar")
-        self.btn_notas = Button(text="Notas")
-        self.btn_prestamos = Button(text="Prést")
+        self.btn_agregar = Button(text="Agregar", font_size=sp(14))
+        self.btn_editar = Button(text="Editar", font_size=sp(14))
+        self.btn_eliminar = Button(text="Eliminar", font_size=sp(14))
+        self.btn_notas = Button(text="Notas", font_size=sp(14))
+        self.btn_prestamos = Button(text="Prést", font_size=sp(14))
         for btn in [self.btn_agregar, self.btn_editar, self.btn_eliminar, self.btn_notas, self.btn_prestamos]:
             botones_layout.add_widget(btn)
 
         # --- Selector de empleado ---
-        seleccion_layout = BoxLayout(size_hint=(1, None), height=40, spacing=5)
-        seleccion_layout.add_widget(Label(text="Empleado:", size_hint_x=None, width=80))
-        self.spinner_empleados = Spinner(text="Selecciona empleado", values=[])
+        seleccion_layout = BoxLayout(size_hint=(1, None), height=dp(50), spacing=dp(5))
+        seleccion_layout.add_widget(Label(text="Empleado:", size_hint_x=None, width=dp(80), font_size=sp(14)))
+        self.spinner_empleados = Spinner(text="Selecciona empleado", values=[], font_size=sp(14))
         seleccion_layout.add_widget(self.spinner_empleados)
         self.contenedor.add_widget(seleccion_layout)
 
         # --- Scroll info empleado ---
         self.info_scroll = ScrollView(size_hint=(1, 1))
-        self.empleados_layout = BoxLayout(orientation='vertical', spacing=5, size_hint_y=None)
+        self.empleados_layout = BoxLayout(orientation='vertical', spacing=dp(5), size_hint_y=None)
         self.empleados_layout.bind(minimum_height=self.empleados_layout.setter('height'))
         self.info_scroll.add_widget(self.empleados_layout)
         self.contenedor.add_widget(self.info_scroll)
 
         # --- Footer con Volver ---
-        footer = BoxLayout(size_hint=(1, None), height=50, spacing=5)
-        self.btn_volver = Button(text="Volver", size_hint_x=None, width=100)
+        footer = BoxLayout(size_hint=(1, None), height=dp(50), spacing=dp(5))
+        self.btn_volver = Button(text="Volver", size_hint_x=None, width=dp(120), font_size=sp(14))
         footer.add_widget(self.btn_volver)
         footer.add_widget(Label())  # espacio vacío
         self.contenedor.add_widget(footer)

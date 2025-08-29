@@ -5,7 +5,8 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.resources import resource_add_path
 from kivy.uix.popup import Popup
-from kivy.graphics import Rectangle
+from kivy.graphics import Rectangle, Color
+from kivy.metrics import dp, sp
 import requests
 import os
 from datetime import datetime
@@ -20,36 +21,65 @@ class LoginPatronScreen(Screen):
 
         # Fondo con canvas
         with self.canvas.before:
+            Color(1, 1, 1, 1)  # Fondo blanco si no carga la imagen
             self.fondo_rect = Rectangle(source="fondo.png", pos=self.pos, size=self.size)
         self.bind(size=self._update_rect, pos=self._update_rect)
 
         # Layout principal
         self.layout = BoxLayout(
             orientation='vertical',
-            spacing=20,
-            size_hint=(0.5, 0.5),
-            pos_hint={'center_x': 0.5, 'center_y': 0.5}
+            spacing=dp(15),
+            size_hint=(0.85, 0.55),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
+            padding=[dp(20), dp(20), dp(20), dp(20)]
         )
 
         # Label saludo
-        self.label = Label(text="Hola, patrón", font_size=24, color=(1, 1, 1, 1))
+        self.label = Label(
+            text="Hola, patrón",
+            font_size=sp(26),
+            color=(0.1, 0.1, 0.1, 1),
+            halign="center",
+            valign="middle"
+        )
+        self.label.bind(size=self.label.setter('text_size'))
 
         # Campo contraseña
         self.input_contrasena = TextInput(
             hint_text="Contraseña",
             multiline=False,
             password=True,
+            font_size=sp(16),
             size_hint=(1, None),
-            height=40
+            height=dp(45),
+            padding=[dp(10), dp(10)],
+            background_color=(0.95, 0.95, 0.95, 1),
+            foreground_color=(0,0,0,1)
         )
 
         # Botones
-        self.boton_ingresar = Button(text="Ingresar", size_hint=(1, None), height=40)
-        self.boton_regresar = Button(text="Regresar", size_hint=(1, None), height=40)
+        self.boton_ingresar = Button(
+            text="Ingresar",
+            size_hint=(1, None),
+            height=dp(45),
+            font_size=sp(16),
+            background_color=(0.2, 0.6, 1, 1),
+            color=(1,1,1,1)
+        )
+        self.boton_regresar = Button(
+            text="Regresar",
+            size_hint=(1, None),
+            height=dp(45),
+            font_size=sp(14),
+            background_color=(0.7, 0.7, 0.7, 1),
+            color=(0,0,0,1)
+        )
 
+        # Bindings
         self.boton_ingresar.bind(on_release=self.verificar_patron)
         self.boton_regresar.bind(on_release=self.regresar)
 
+        # Añadir widgets
         self.layout.add_widget(self.label)
         self.layout.add_widget(self.input_contrasena)
         self.layout.add_widget(self.boton_ingresar)
@@ -72,7 +102,6 @@ class LoginPatronScreen(Screen):
             self.nombre_patron = patron.get("nombre", "Patrón")
             self.label.text = f"Hola, {self.nombre_patron}"
         else:
-            # Hacer GET a la API
             try:
                 response = requests.get(f"https://mi-caja-api.onrender.com/tiendas/{tienda_id}/patron/")
                 response.raise_for_status()
@@ -110,7 +139,6 @@ class LoginPatronScreen(Screen):
 
             self.mostrar_popup("Éxito", f"Bienvenido, {self.nombre_patron}.")
 
-            # Cambiar a pantalla principal
             pantalla_principal = self.manager.get_screen("pantalla_principal")
             pantalla_principal.configurar_sesion(
                 origen="patron", nombre=self.nombre_patron, tienda_id=self.tienda_id
@@ -125,12 +153,12 @@ class LoginPatronScreen(Screen):
         self.manager.current = "seleccion_rol"
 
     def mostrar_popup(self, titulo, mensaje):
-        contenido = BoxLayout(orientation='vertical', spacing=10)
-        contenido.add_widget(Label(text=mensaje))
-        cerrar = Button(text="Cerrar", size_hint=(1, 0.3))
-        popup = Popup(title=titulo, content=contenido, size_hint=(0.6, 0.4))
-        cerrar.bind(on_release=popup.dismiss)
+        contenido = BoxLayout(orientation='vertical', spacing=dp(10), padding=dp(10))
+        contenido.add_widget(Label(text=mensaje, font_size=sp(16), halign='center', valign='middle'))
+        cerrar = Button(text="Cerrar", size_hint=(1, None), height=dp(45), background_color=(0.2,0.6,1,1), color=(1,1,1,1))
         contenido.add_widget(cerrar)
+        popup = Popup(title=titulo, content=contenido, size_hint=(0.75, 0.35))
+        cerrar.bind(on_release=popup.dismiss)
         popup.open()
 
     def esta_en_horario_login(self):
