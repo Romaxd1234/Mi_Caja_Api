@@ -1,4 +1,3 @@
-from fastapi import FastAPI, APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List
 from datetime import datetime
@@ -79,23 +78,8 @@ async def obtener_tienda_json(tienda_id: int):
         raise HTTPException(status_code=404, detail="Tienda no encontrada")
     return dict(tienda)
 
-import json
-
 async def actualizar_tienda(tienda_id: int, datos: dict):
-    """
-    Actualiza una tienda en la base de datos.
-    Convierte automáticamente listas y diccionarios a JSON antes de guardar.
-    """
-    datos_convertidos = {}
-    for k, v in datos.items():
-        # Si es dict o list, lo convertimos a JSON string
-        if isinstance(v, (dict, list)):
-            datos_convertidos[k] = json.dumps(v)
-        else:
-            datos_convertidos[k] = v
-
-    query = tiendas_table.update().where(tiendas_table.c.id == tienda_id).values(**datos_convertidos)
-    await database.execute(query)
+    await database.execute(tiendas_table.update().where(tiendas_table.c.id == tienda_id).values(**datos))
 
 # ---------------------
 # Routers existentes
@@ -358,23 +342,19 @@ async def eliminar_corte_semanal(tienda_id: int, corte_id: int):
 async def listar_prestamos(tienda_id: int, empleado_id: int):
     tienda = await obtener_tienda_json(tienda_id)
     empleado = next((e for e in tienda["empleados"] if e["id"] == empleado_id), None)
-    if not empleado: 
-        raise HTTPException(status_code=404)
+    if not empleado: raise HTTPException(status_code=404)
     return empleado["prestamos"]
 
 @prestamos_router.post("/")
 async def agregar_prestamo(tienda_id: int, empleado_id: int, prestamo: PrestamoRequest):
     tienda = await obtener_tienda_json(tienda_id)
     empleado = next((e for e in tienda["empleados"] if e["id"] == empleado_id), None)
-    if not empleado: 
-        raise HTTPException(status_code=404)
-    
+    if not empleado: raise HTTPException(status_code=404)
     nuevo = {
-        "id": len(empleado["prestamos"]) + 1,
+        "id": len(empleado["prestamos"])+1,
         "cantidad": prestamo.cantidad,
         "descripcion": prestamo.descripcion,
-        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "pendiente": True  # <-- NUEVO CAMPO
+        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     empleado["prestamos"].append(nuevo)
     empleados = [e if e["id"] != empleado_id else empleado for e in tienda["empleados"]]
@@ -382,14 +362,7 @@ async def agregar_prestamo(tienda_id: int, empleado_id: int, prestamo: PrestamoR
     return nuevo
 
 @prestamos_router.put("/{prestamo_id}")
-async def editar_prestamo(
-    tienda_id: int,
-    empleado_id: int,
-    prestamo_id: int,
-    cantidad: float = None,
-    descripcion: str = None,
-    pendiente: bool = None  # <-- NUEVO PARAMETRO
-):
+async def editar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int, cantidad: float = None, descripcion: str = None):
     tienda = await obtener_tienda_json(tienda_id)
     empleado = next((e for e in tienda["empleados"] if e["id"] == empleado_id), None)
     if not empleado:
@@ -403,9 +376,7 @@ async def editar_prestamo(
         prestamo["cantidad"] = cantidad
     if descripcion is not None:
         prestamo["descripcion"] = descripcion
-    if pendiente is not None:
-        prestamo["pendiente"] = pendiente  # <-- GUARDAMOS EL ESTADO
-
+    
     empleados = [e if e["id"] != empleado_id else empleado for e in tienda["empleados"]]
     await actualizar_tienda(tienda_id, {"empleados": empleados})
     return prestamo
@@ -419,6 +390,7 @@ async def eliminar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int):
     
     prestamos = [p for p in empleado["prestamos"] if p["id"] != prestamo_id]
     empleado["prestamos"] = prestamos
+    
     empleados = [e if e["id"] != empleado_id else empleado for e in tienda["empleados"]]
     await actualizar_tienda(tienda_id, {"empleados": empleados})
     return {"mensaje": "Préstamo eliminado"}
