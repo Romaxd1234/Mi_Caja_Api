@@ -288,44 +288,18 @@ async def listar_ventas(tienda_id: int):
 @ventas_router.post("/")
 async def agregar_venta(tienda_id: int, venta: VentaRequest):
     tienda = await obtener_tienda_json(tienda_id)
-
-    # Calcular total de la venta
     total = sum(p.precio * p.cantidad for p in venta.productos)
     nueva_venta = {
-        "id": len(tienda["ventas"]) + 1,
+        "id": len(tienda["ventas"])+1,
         "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "usuario": venta.usuario,
         "productos": [p.dict() for p in venta.productos],
         "total": total,
         "fuera_inventario": venta.fuera_inventario
     }
-
-    # Agregar la venta a la lista de ventas
     ventas = tienda["ventas"] + [nueva_venta]
-
-    # Descontar productos del inventario
-    inventario = tienda["inventario"]
-    for pv in venta.productos:
-        producto = next((p for p in inventario if p["producto"] == pv.producto), None)
-        if producto:
-            producto["piezas"] -= pv.cantidad
-            if producto["piezas"] < 0:
-                producto["piezas"] = 0  # Evita valores negativos
-        else:
-            # Si el producto no existe en inventario, lo agregamos si fuera_inventario es True
-            if venta.fuera_inventario:
-                inventario.append({
-                    "id": len(inventario) + 1,
-                    "producto": pv.producto,
-                    "precio": pv.precio,
-                    "piezas": 0
-                })
-
-    # Actualizar tienda con ventas e inventario
-    await actualizar_tienda(tienda_id, {"ventas": ventas, "inventario": inventario})
-
+    await actualizar_tienda(tienda_id, {"ventas": ventas})
     return nueva_venta
-
 
 @ventas_router.delete("/{venta_id}")
 async def eliminar_venta(tienda_id: int, venta_id: int):
