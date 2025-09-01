@@ -287,6 +287,7 @@ async def listar_ventas(tienda_id: int):
 
 @ventas_router.post("/")
 async def agregar_venta(tienda_id: int, venta: VentaRequest):
+    print("Venta recibida:", venta.dict()) 
     tienda = await obtener_tienda_json(tienda_id)
 
     # Calcular total de la venta
