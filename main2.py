@@ -4,6 +4,7 @@ import json
 from typing import List
 from datetime import datetime
 from databases import Database
+from sqlalchemy import Boolean 
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, JSON
 
 # ---------------------
@@ -25,7 +26,8 @@ tiendas_table = Table(
     Column("ventas", JSON),
     Column("cortes", JSON),
     Column("dispositivos_registrados", JSON, default=[]),  # NUEVO
-    Column("dispositivos_permitidos", Integer, default=2)  # NUEVO
+    Column("dispositivos_permitidos", Integer, default=2),  # NUEVO
+    Column("permitir_ventas_fuera_inventario", Boolean, default=False) 
 )
 
 engine = create_engine(DATABASE_URL)
@@ -70,7 +72,8 @@ def crear_estructura_tienda(nombre: str, password: str):
         "ventas": [],
         "cortes": {"diarios": [], "semanales": []},
         "dispositivos_registrados": [],  # NUEVO
-        "dispositivos_permitidos": 2     # NUEVO
+        "dispositivos_permitidos": 2,   # NUEVO
+        "permitir_ventas_fuera_inventario": False
     }
 
 
@@ -89,7 +92,8 @@ async def obtener_tienda_json(tienda_id: int):
         "inventario": [],                 # lista
         "ventas": [],                     # lista
         "cortes": {"diarios": [], "semanales": []},  # dict con listas
-        "dispositivos_registrados": []    # lista
+        "dispositivos_registrados": [],    # lista
+        "permitir_ventas_fuera_inventario": False
     }
     
     for campo, default in campos_json.items():

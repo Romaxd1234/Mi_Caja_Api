@@ -165,8 +165,15 @@ class AbrirTiendaScreen(Screen):
 
                 if self.manager:
                     try:
-                        pantalla_principal = self.manager.get_screen("pantalla_principal")
-                        pantalla_principal.tienda_actual = tienda
+                        ventas_screen = self.manager.get_screen("pantalla_principal")
+                        ventas_screen.configurar_sesion(
+                            empleado=None,
+                            tienda=tienda,
+                            tienda_id=tienda["id"],
+                            nombre=None,
+                            origen="patron"
+                        )
+                        ventas_screen.cargar_tienda_api()
 
                         pantalla_rol = self.manager.get_screen("seleccion_rol")
                         pantalla_rol.tienda_actual_id = tienda["id"]

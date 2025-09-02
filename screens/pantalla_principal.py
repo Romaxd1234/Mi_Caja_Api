@@ -173,6 +173,7 @@ class VentanaPrincipal(Screen):
     def actualizar_hora(self, dt):
         ahora = datetime.now()
         self.label_hora.text = ahora.strftime("%H:%M:%S")
+    
 
     # ------------------------
     # Métodos de popups adaptados a tamaño de pantalla
@@ -333,12 +334,16 @@ class VentanaPrincipal(Screen):
                 return
 
             import requests
+            import json 
 
             payload = {
                 "usuario": self.nombre_usuario,
                 "fuera_inventario": True,
                 "productos": [{"producto": p, "precio": pr, "cantidad": 1} for p, pr in self.ventas_temporales]
             }
+
+            print("=== Enviando payload a la API ===")
+            print(json.dumps(payload, indent=4))
 
             try:
                 respuesta = requests.post(
@@ -459,8 +464,7 @@ class VentanaPrincipal(Screen):
 
     def set_tienda_id(self, tienda_id):
         self.tienda_id = tienda_id
-        # Intentar cargar inmediatamente el nombre de la tienda
-        self.cargar_tienda_api()
+        self.cargar_tienda_api() 
 
 
     def cargar_empleados_api(self):
