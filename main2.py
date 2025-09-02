@@ -344,6 +344,10 @@ async def agregar_venta(tienda_id: int, venta: VentaRequest):
 
     return nueva_venta
 
+@ventas_router.post("")
+async def agregar_venta_sin_slash(tienda_id: int, venta: VentaRequest):
+    return await agregar_venta(tienda_id, venta)
+
 
 @ventas_router.delete("/{venta_id}")
 async def eliminar_venta(tienda_id: int, venta_id: int):
