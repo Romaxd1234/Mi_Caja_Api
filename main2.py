@@ -304,6 +304,7 @@ async def agregar_venta(tienda_id: int, venta: VentaRequest):
     # Calcular total de la venta
     total = sum(p.precio * p.cantidad for p in venta.productos)
 
+    permitir_fuera = tienda.get("permitir_ventas_fuera_inventario", False)
     # Verificar y actualizar inventario
     for producto_vendido in venta.productos:
         encontrado = False
@@ -312,10 +313,11 @@ async def agregar_venta(tienda_id: int, venta: VentaRequest):
                 encontrado = True
                 cantidad_vendida = int(producto_vendido.cantidad)  # forzar entero
                 if cantidad_vendida > prod_inventario["piezas"]:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"No hay suficiente stock de {producto_vendido.producto} (disponible {prod_inventario['piezas']})"
-                    )
+                    if not permitir_fuera:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"No hay suficiente stock de {producto_vendido.producto} (disponible {prod_inventario['piezas']})"
+                        )
                 prod_inventario["piezas"] -= cantidad_vendida
         if not encontrado:
             raise HTTPException(
