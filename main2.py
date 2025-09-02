@@ -134,13 +134,20 @@ async def registrar_dispositivo(tienda_id: int, dispositivo: DispositivoRequest)
     tienda = await obtener_tienda_json(tienda_id)
     registrados = tienda.get("dispositivos_registrados", [])
     max_dispositivos = tienda.get("dispositivos_permitidos", 2)
-    if len(registrados) >= max_dispositivos:
-        raise HTTPException(status_code=400, detail="Límite de dispositivos alcanzado")
+    
+    # Primero check duplicado
     if dispositivo.uuid in registrados:
         raise HTTPException(status_code=400, detail="Dispositivo ya registrado")
+    
+    # Luego check de límite
+    if len(registrados) >= max_dispositivos:
+        raise HTTPException(status_code=400, detail="Límite de dispositivos alcanzado")
+    
+    # Agregar dispositivo
     registrados.append(dispositivo.uuid)
     await actualizar_tienda(tienda_id, {"dispositivos_registrados": registrados})
     return {"mensaje": "Dispositivo registrado", "uuid": dispositivo.uuid}
+
 
 @dispositivos_router.put("/permitidos")
 async def actualizar_dispositivos_permitidos(tienda_id: int, data: DispositivosPermitidosRequest):

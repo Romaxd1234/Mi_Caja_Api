@@ -20,9 +20,10 @@ API_BASE = "https://mi-caja-api.onrender.com/tiendas"  # Cambia al host real
 
 
 class CorteSemanalScreen(Screen):
-    def __init__(self, tienda_id=1, **kwargs):
+    def __init__(self, tienda_id=None, usuario=None, **kwargs):
         super().__init__(**kwargs)
         self.tienda_id = tienda_id
+        self.usuario = usuario
         self.pagos_prestamos_temp = {}
 
         resource_add_path(os.path.join(os.path.dirname(__file__), "assets"))
@@ -83,6 +84,13 @@ class CorteSemanalScreen(Screen):
         resp_put = requests.put(f"{API_BASE}/{self.tienda_id}/empleados/{empleado_id}/prestamos/{prestamo_id}",
                                 json={"cantidad": prestamo["cantidad"], "descripcion": prestamo.get("descripcion")})
         return resp_put.status_code == 200
+
+    def set_tienda_id(self, tienda_id, usuario=None):
+        self.tienda_id = tienda_id
+        if usuario:
+            self.usuario = usuario
+        # Al actualizar el ID, recargamos la vista cortes
+        self.mostrar_vista_cortes()
 
     # ---------------------
     # VISTA PRINCIPAL DE CORTES

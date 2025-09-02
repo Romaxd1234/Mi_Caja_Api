@@ -427,7 +427,9 @@ class VentanaPrincipal(Screen):
         self.manager.current = 'inventario'
 
     def ir_a_registro_semanal(self, instance):
-        self.manager.current = 'registro_semanal'
+        registro_screen = self.manager.get_screen("registro_semanal")
+        registro_screen.set_tienda_id(self.tienda_id, self.nombre_usuario)
+        self.manager.current = "registro_semanal"
 
     def realizar_corte(self, instance):
         print("Ir a Corte")
@@ -546,6 +548,9 @@ class VentanaPrincipal(Screen):
 
         def corte_semanal(instance_btn):
             popup.dismiss()
+            corte_screen = self.manager.get_screen("corte_semanal")
+            # ✅ Pasar el ID de la tienda y el usuario
+            corte_screen.set_tienda_id(self.tienda_id, self.nombre_usuario)
             self.manager.current = "corte_semanal"
 
         btn_diario.bind(on_release=corte_diario)

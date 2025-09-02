@@ -14,7 +14,7 @@ import requests
 API_BASE = "https://mi-caja-api.onrender.com/tiendas"
 
 class RegistroSemanal(Screen):
-    def __init__(self, tienda_id=1, **kwargs):
+    def __init__(self, tienda_id=None, **kwargs):
         super().__init__(**kwargs)
         self.tienda_id = tienda_id
         self.root_layout = RelativeLayout()
@@ -47,6 +47,11 @@ class RegistroSemanal(Screen):
     def _update_rect(self, *args):
         self.fondo_rect.pos = self.root_layout.pos
         self.fondo_rect.size = self.root_layout.size
+
+    def set_tienda_id(self, tienda_id, usuario=None):
+        self.tienda_id = tienda_id
+        if usuario:
+            self.usuario = usuario
 
     def on_pre_enter(self):
         self.mostrar_lista_cortes()
