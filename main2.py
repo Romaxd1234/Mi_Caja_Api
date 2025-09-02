@@ -298,11 +298,61 @@ async def listar_ventas(tienda_id: int):
 
 @ventas_router.post("/")
 async def agregar_venta(tienda_id: int, venta: VentaRequest):
-    # Devolver el contenido recibido para depuración
-    return {
-        "venta_recibida": venta.dict()
+    print("Venta recibida:", venta.dict())
+
+    tienda = await obtener_tienda_json(tienda_id)
+
+    # Calcular total
+    total = sum(p.precio * p.cantidad for p in venta.productos)
+    permitir_fuera = tienda.get("permitir_ventas_fuera_inventario", False)
+
+    fuera_inventario = False  # bandera general para esta venta
+
+    # Verificar y actualizar inventario
+    for producto_vendido in venta.productos:
+        encontrado = False
+        for prod_inventario in tienda["inventario"]:
+            if prod_inventario["producto"] == producto_vendido.producto:
+                encontrado = True
+                cantidad_vendida = int(producto_vendido.cantidad)
+
+                if cantidad_vendida > prod_inventario["piezas"]:
+                    if not permitir_fuera:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"No hay suficiente stock de {producto_vendido.producto} "
+                                   f"(disponible {prod_inventario['piezas']})"
+                        )
+                    else:
+                        fuera_inventario = True
+
+                # Descontar si hay piezas
+                if prod_inventario["piezas"] >= cantidad_vendida:
+                    prod_inventario["piezas"] -= cantidad_vendida
+                break
+
+        if not encontrado:
+            # Si el producto no está en inventario, solo marcamos la venta como "fuera"
+            fuera_inventario = True
+
+    # Crear registro de venta
+    nueva_venta = {
+        "id": len(tienda["ventas"]) + 1,
+        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "usuario": venta.usuario,
+        "productos": [p.dict() for p in venta.productos],
+        "total": total,
+        "fuera_inventario": fuera_inventario
     }
 
+    # Guardar venta e inventario actualizado
+    ventas = tienda["ventas"] + [nueva_venta]
+    await actualizar_tienda(tienda_id, {
+        "ventas": ventas,
+        "inventario": tienda["inventario"]
+    })
+
+    return nueva_venta
 
 @ventas_router.post("")
 async def agregar_venta_sin_slash(tienda_id: int, venta: VentaRequest):
