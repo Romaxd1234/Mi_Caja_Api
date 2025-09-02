@@ -291,7 +291,8 @@ async def eliminar_producto(tienda_id: int, producto_id: int):
 # ---------------------
 # Rutas Ventas
 # ---------------------
-@ventas_router.get("/")
+@ventas_router.get("/", include_in_schema=False)
+@ventas_router.get("")
 async def listar_ventas(tienda_id: int):
     tienda = await obtener_tienda_json(tienda_id)
     return tienda["ventas"]
