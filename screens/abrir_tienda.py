@@ -24,19 +24,18 @@ if sys.platform == "win32":
 else:
     from jnius import autoclass
 
-
 API_URL = "https://mi-caja-api.onrender.com/tiendas"
 
 def get_device_uuid():
     try:
-        # Método Android nativo (ANDROID_ID)
+        # Android nativo
         Secure = autoclass('android.provider.Settings$Secure')
         PythonActivity = autoclass('org.kivy.android.PythonActivity')
         context = PythonActivity.mActivity.getContentResolver()
         android_id = Secure.getString(context, Secure.ANDROID_ID)
         return android_id
     except:
-        # Fallback universal: generar un UUID persistente en disco
+        # Fallback: UUID persistente en disco
         app_data_dir = App.get_running_app().user_data_dir
         uuid_path = os.path.join(app_data_dir, "device_uuid.txt")
         if os.path.exists(uuid_path):
@@ -51,11 +50,10 @@ class AbrirTiendaScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+        # Directorio de datos de la app
         app_data_dir = App.get_running_app().user_data_dir
         os.makedirs(app_data_dir, exist_ok=True)
         self.TXT_PATH = os.path.join(app_data_dir, "tienda.txt")
-
-        resource_add_path(os.path.join(os.path.dirname(__file__), "assets"))
 
         # Fondo con canvas
         with self.canvas.before:
@@ -65,30 +63,22 @@ class AbrirTiendaScreen(Screen):
         # Layout principal
         layout = BoxLayout(
             orientation='vertical',
-            padding=[20, 20, 20, 20],  # margen interno adaptable
+            padding=[20, 20, 20, 20],
             spacing=15,
             size_hint=(0.9, 0.9),
             pos_hint={'center_x': 0.5, 'center_y': 0.5}
         )
 
-        # Título
         layout.add_widget(Label(text="Abrir Tienda", font_size='24sp', size_hint=(1, None), height='40dp'))
-
-        # Nombre
         layout.add_widget(Label(text="Nombre de la tienda", size_hint=(1, None), height='30dp'))
         self.nombre_input = TextInput(multiline=False, size_hint=(1, None), height='40dp')
         layout.add_widget(self.nombre_input)
-
-        # Contraseña
         layout.add_widget(Label(text="Contraseña", size_hint=(1, None), height='30dp'))
         self.contra_input = TextInput(password=True, multiline=False, size_hint=(1, None), height='40dp')
         layout.add_widget(self.contra_input)
-
-        # Mensaje de error o éxito
         self.msg = Label(text="", color=(1, 0, 0, 1), size_hint=(1, None), height='30dp')
         layout.add_widget(self.msg)
 
-        # Botones
         btn_abrir = Button(text="Abrir Tienda", size_hint=(1, None), height='45dp')
         btn_abrir.bind(on_press=self.abrir_tienda)
         layout.add_widget(btn_abrir)
@@ -98,7 +88,6 @@ class AbrirTiendaScreen(Screen):
         layout.add_widget(btn_volver)
 
         self.add_widget(layout)
-
         Clock.schedule_once(lambda dt: self.auto_abrir_tienda(), 0)
 
     def _update_rect(self, *args):
@@ -115,11 +104,9 @@ class AbrirTiendaScreen(Screen):
                 ts = datetime.fromisoformat(ts)
         except Exception:
             return
-
         if datetime.now() - ts > timedelta(hours=8):
             os.remove(self.TXT_PATH)
             return
-
         self._abrir_tienda(nombre, contra)
 
     def abrir_tienda(self, instance):
@@ -143,49 +130,59 @@ class AbrirTiendaScreen(Screen):
                 return
 
             tienda = response.json()
-            if tienda.get("password", "").strip() == contra.strip():
-                self.msg.text = "Tienda abierta correctamente"
-
-                with open(self.TXT_PATH, "w") as f:
-                    f.write(f"{nombre},{contra},{datetime.now().isoformat()}")
-
-                with open(self.TXT_PATH, "w") as f:
-                    f.write(f"{nombre},{contra},{datetime.now().isoformat()}")
-
-                # 🔹 Registrar dispositivo en la API
-                try:
-                    uuid_dispositivo = get_device_uuid()
-                    requests.post(
-                        f"{API_URL}/{tienda_id}/dispositivos/",
-                        json={"uuid": uuid_dispositivo}
-                    )
-                    print(f"✅ Dispositivo registrado en tienda {tienda_id}: {uuid_dispositivo}")
-                except Exception as e:
-                    print("⚠️ Error al registrar dispositivo:", e)
-
-                if self.manager:
-                    try:
-                        ventas_screen = self.manager.get_screen("pantalla_principal")
-                        ventas_screen.configurar_sesion(
-                            empleado=None,
-                            tienda=tienda,
-                            tienda_id=tienda["id"],
-                            nombre=None,
-                            origen="patron"
-                        )
-                        ventas_screen.cargar_tienda_api()
-
-                        pantalla_rol = self.manager.get_screen("seleccion_rol")
-                        pantalla_rol.tienda_actual_id = tienda["id"]
-
-                        inventario_screen = self.manager.get_screen("inventario")
-                        inventario_screen.set_tienda_api(tienda)
-
-                        self.manager.current = "seleccion_rol"
-                    except Exception as e:
-                        self.msg.text = f"Error interno: {str(e)}"
-            else:
+            if tienda.get("password", "").strip() != contra.strip():
                 self.msg.text = "Contraseña incorrecta"
+                return
+
+            # 🔹 CONTROL DE DISPOSITIVOS
+            uuid_dispositivo = get_device_uuid()
+            devices_resp = requests.get(f"{API_URL}/{tienda_id}/dispositivos/")
+            devices = []
+            if devices_resp.status_code == 200:
+                devices = devices_resp.json().get("dispositivos_registrados", [])
+
+            max_allowed = tienda.get("dispositivos_permitidos", 2)
+
+            if uuid_dispositivo in devices:
+                pass  # ya registrado
+            elif len(devices) >= max_allowed:
+                self.msg.text = "Se alcanzó el límite de dispositivos permitidos"
+                return
+            else:
+                reg_resp = requests.post(f"{API_URL}/{tienda_id}/dispositivos/", json={"uuid": uuid_dispositivo})
+                if reg_resp.status_code not in (200, 201):
+                    self.msg.text = "No se pudo registrar el dispositivo (límite alcanzado)"
+                    return
+                print(f"✅ Dispositivo registrado: {uuid_dispositivo}")
+
+            # Guardar TXT con timestamp
+            with open(self.TXT_PATH, "w") as f:
+                f.write(f"{nombre},{contra},{datetime.now().isoformat()}")
+
+            self.msg.text = "Tienda abierta correctamente"
+
+            # Pasar la tienda a otras pantallas
+            if self.manager:
+                try:
+                    ventas_screen = self.manager.get_screen("pantalla_principal")
+                    ventas_screen.configurar_sesion(
+                        empleado=None,
+                        tienda=tienda,
+                        tienda_id=tienda["id"],
+                        nombre=None,
+                        origen="patron"
+                    )
+                    ventas_screen.cargar_tienda_api()
+
+                    pantalla_rol = self.manager.get_screen("seleccion_rol")
+                    pantalla_rol.tienda_actual_id = tienda["id"]
+
+                    inventario_screen = self.manager.get_screen("inventario")
+                    inventario_screen.set_tienda_api(tienda)
+
+                    self.manager.current = "seleccion_rol"
+                except Exception as e:
+                    self.msg.text = f"Error interno: {str(e)}"
 
         except Exception as e:
             self.msg.text = f"Error de conexión: {str(e)}"

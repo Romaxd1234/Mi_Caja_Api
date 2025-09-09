@@ -173,7 +173,6 @@ class VentanaPrincipal(Screen):
     def actualizar_hora(self, dt):
         ahora = datetime.now()
         self.label_hora.text = ahora.strftime("%H:%M:%S")
-    
 
     # ------------------------
     # Métodos de popups adaptados a tamaño de pantalla
@@ -334,16 +333,12 @@ class VentanaPrincipal(Screen):
                 return
 
             import requests
-            import json 
 
             payload = {
                 "usuario": self.nombre_usuario,
                 "fuera_inventario": True,
                 "productos": [{"producto": p, "precio": pr, "cantidad": 1} for p, pr in self.ventas_temporales]
             }
-
-            print("=== Enviando payload a la API ===")
-            print(json.dumps(payload, indent=4))
 
             try:
                 respuesta = requests.post(
@@ -433,8 +428,9 @@ class VentanaPrincipal(Screen):
 
     def ir_a_registro_semanal(self, instance):
         registro_screen = self.manager.get_screen("registro_semanal")
-        registro_screen.set_tienda_id(self.tienda_id, self.nombre_usuario)
+        registro_screen.set_tienda_id(self.tienda_id, usuario=self.nombre_usuario)
         self.manager.current = "registro_semanal"
+
 
     def realizar_corte(self, instance):
         print("Ir a Corte")
@@ -464,7 +460,8 @@ class VentanaPrincipal(Screen):
 
     def set_tienda_id(self, tienda_id):
         self.tienda_id = tienda_id
-        self.cargar_tienda_api() 
+        # Intentar cargar inmediatamente el nombre de la tienda
+        self.cargar_tienda_api()
 
 
     def cargar_empleados_api(self):
@@ -543,6 +540,17 @@ class VentanaPrincipal(Screen):
             size_hint=(0.8, 0.5),  # Adaptable al tamaño de pantalla
             auto_dismiss=False
         )
+        btn_diario.bind(on_release=lambda x: (popup.dismiss(),
+                                            self.manager.get_screen("corte_diario").set_tienda_id(self.tienda_id, self.nombre_usuario),
+                                            setattr(self.manager, 'current', "corte_diario")))
+
+        btn_semanal.bind(on_release=lambda x: (popup.dismiss(),
+                                            self.manager.get_screen("corte_semanal").set_tienda_id(self.tienda_id, usuario=self.nombre_usuario),
+                                            setattr(self.manager, 'current', "corte_semanal")))
+
+        btn_cancelar.bind(on_release=popup.dismiss)
+
+        popup.open()
 
         def corte_diario(instance_btn):
             popup.dismiss()
@@ -552,16 +560,16 @@ class VentanaPrincipal(Screen):
 
         def corte_semanal(instance_btn):
             popup.dismiss()
+            # Obtener el screen de corte semanal
             corte_screen = self.manager.get_screen("corte_semanal")
-            # ✅ Pasar el ID de la tienda y el usuario
-            corte_screen.set_tienda_id(self.tienda_id, self.nombre_usuario)
+            
+            # Pasar tienda_id y nombre_usuario
+            if hasattr(self, "tienda_id"):
+                corte_screen.set_tienda_id(self.tienda_id, usuario=self.nombre_usuario)
+            
+            # Cambiar de pantalla
             self.manager.current = "corte_semanal"
 
-        btn_diario.bind(on_release=corte_diario)
-        btn_semanal.bind(on_release=corte_semanal)
-        btn_cancelar.bind(on_release=popup.dismiss)
-
-        popup.open()
 
     def revisar_prestamo_pendiente(self):
         """

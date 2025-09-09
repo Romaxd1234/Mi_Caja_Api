@@ -14,7 +14,7 @@ import requests
 API_BASE = "https://mi-caja-api.onrender.com/tiendas"
 
 class RegistroSemanal(Screen):
-    def __init__(self, tienda_id=None, **kwargs):
+    def __init__(self, tienda_id=1, **kwargs):
         super().__init__(**kwargs)
         self.tienda_id = tienda_id
         self.root_layout = RelativeLayout()
@@ -47,11 +47,6 @@ class RegistroSemanal(Screen):
     def _update_rect(self, *args):
         self.fondo_rect.pos = self.root_layout.pos
         self.fondo_rect.size = self.root_layout.size
-
-    def set_tienda_id(self, tienda_id, usuario=None):
-        self.tienda_id = tienda_id
-        if usuario:
-            self.usuario = usuario
 
     def on_pre_enter(self):
         self.mostrar_lista_cortes()
@@ -129,6 +124,13 @@ class RegistroSemanal(Screen):
         resumen_layout.add_widget(Label(text=f"Total Ventas Semana: ${total_ventas_semana:,.2f}", size_hint_y=None, height=dp(30), font_size=sp(16)))
 
         self.main_layout.add_widget(resumen_layout)
+
+    def set_tienda_id(self, tienda_id, usuario=None):
+        self.tienda_id = tienda_id
+        if usuario:
+            self.usuario_actual = usuario
+        # Refrescar la lista de cortes
+        self.mostrar_lista_cortes()
 
     # ---------------------
     # BOTONES VOLVER

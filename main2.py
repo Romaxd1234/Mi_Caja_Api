@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, APIRouter
 from pydantic import BaseModel
 import json
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from databases import Database
 from sqlalchemy import Boolean 
@@ -41,6 +41,20 @@ app = FastAPI(title="API Tiendas Completa")
 # ---------------------
 # Modelos
 # ---------------------
+
+class PrestamoUpdate(BaseModel):
+    id: Optional[int]
+    cantidad: Optional[float]
+    descripcion: Optional[str]
+
+class EmpleadoUpdate(BaseModel):
+    nombre: Optional[str]
+    puesto: Optional[str]
+    sueldo: Optional[float]
+    password: Optional[str]
+    nota: Optional[str]
+    prestamos: Optional[List[PrestamoUpdate]]
+
 class ProductoVenta(BaseModel):
     producto: str
     precio: float
@@ -235,17 +249,44 @@ async def crear_empleado(tienda_id: int, nombre: str, puesto: str, sueldo: float
     return nuevo
 
 @empleados_router.put("/{empleado_id}")
-async def editar_empleado(tienda_id: int, empleado_id: int, nombre: str = None, puesto: str = None, sueldo: float = None, password: str = None, nota: str = None):
+async def editar_empleado(tienda_id: int, empleado_id: int, data: EmpleadoUpdate):
     tienda = await obtener_tienda_json(tienda_id)
     empleado = next((e for e in tienda["empleados"] if e["id"] == empleado_id), None)
-    if not empleado: raise HTTPException(status_code=404)
-    if nombre: empleado["nombre"] = nombre
-    if puesto: empleado["puesto"] = puesto
-    if sueldo: empleado["sueldo"] = sueldo
-    if password: empleado["password"] = password
-    if nota: empleado["nota"] = nota
+    if not empleado: 
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+    
+    update_dict = data.dict(exclude_unset=True)
+
+    # Actualizar campos básicos
+    for key in ["nombre", "puesto", "sueldo", "password", "nota"]:
+        if key in update_dict:
+            empleado[key] = update_dict[key]
+
+    # Actualizar préstamos si vienen
+    if "prestamos" in update_dict:
+        for prestamo in update_dict["prestamos"]:
+            if prestamo.id:
+                # buscar y actualizar
+                existing = next((p for p in empleado["prestamos"] if p["id"] == prestamo.id), None)
+                if existing:
+                    if prestamo.cantidad is not None:
+                        existing["cantidad"] = prestamo.cantidad
+                    if prestamo.descripcion is not None:
+                        existing["descripcion"] = prestamo.descripcion
+            else:
+                # nuevo préstamo
+                nuevo_id = (max([p["id"] for p in empleado["prestamos"]] + [0]) + 1)
+                empleado["prestamos"].append({
+                    "id": nuevo_id,
+                    "cantidad": prestamo.cantidad,
+                    "descripcion": prestamo.descripcion,
+                    "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+
+    # Guardar cambios
     await actualizar_tienda(tienda_id, {"empleados": tienda["empleados"]})
     return empleado
+
 
 @empleados_router.delete("/{empleado_id}")
 async def eliminar_empleado(tienda_id: int, empleado_id: int):

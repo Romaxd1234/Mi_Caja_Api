@@ -48,22 +48,48 @@ class CorteSemanalScreen(Screen):
     # FUNCIONES API
     # ---------------------
     def obtener_cortes_diarios(self):
-        try:
-            resp = requests.get(f"{API_BASE}/{self.tienda_id}/cortes/diarios")
-            if resp.status_code == 200:
-                return resp.json()
-        except:
-            pass
-        return []
+        if not self.tienda_id:
+            print("No se ha definido tienda_id")
+            return []
 
-    def obtener_empleados(self):
         try:
-            resp = requests.get(f"{API_BASE}/{self.tienda_id}/empleados/")
+            url = f"{API_BASE}/{self.tienda_id}/cortes/diarios"
+            resp = requests.get(url)
+            print("URL solicitada:", url)
+            print("Status code:", resp.status_code)
+            print("Respuesta JSON:", resp.text)
+
             if resp.status_code == 200:
-                return resp.json()
-        except:
-            pass
-        return []
+                # Si la API devuelve {"cortes": [...]} en lugar de lista directa
+                data = resp.json()
+                if isinstance(data, dict) and "cortes" in data:
+                    return data["cortes"]
+                elif isinstance(data, list):
+                    return data
+                else:
+                    print("Formato de respuesta inesperado:", data)
+                    return []
+            else:
+                print("Error: status code no es 200")
+                return []
+
+        except Exception as e:
+            print("Error al obtener cortes:", e)
+            return []
+        
+    def obtener_empleados(self):
+        if not hasattr(self, "tienda_id") or not self.tienda_id:
+            return []
+
+        try:
+            url = f"https://mi-caja-api.onrender.com/tiendas/{self.tienda_id}/empleados/"
+            respuesta = requests.get(url)
+            respuesta.raise_for_status()
+            return respuesta.json()
+        except Exception as e:
+            print("Error al obtener empleados:", e)
+            return []
+
 
     def actualizar_prestamo(self, empleado_id, prestamo_id, nuevo_prestamo, descripcion=None):
         # Traer todos los préstamos del empleado
@@ -87,9 +113,10 @@ class CorteSemanalScreen(Screen):
 
     def set_tienda_id(self, tienda_id, usuario=None):
         self.tienda_id = tienda_id
-        if usuario:
-            self.usuario = usuario
-        # Al actualizar el ID, recargamos la vista cortes
+        self.usuario = usuario
+        print(f"Corte Semanal: tienda_id={tienda_id}, usuario={usuario}")
+        
+        # Llamar a tu función para mostrar cortes ahora que tenemos la tienda
         self.mostrar_vista_cortes()
 
     # ---------------------
