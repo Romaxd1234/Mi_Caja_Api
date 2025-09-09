@@ -123,8 +123,22 @@ async def obtener_tienda_json(tienda_id: int):
     return tienda_dict
 
 
+import json
+
 async def actualizar_tienda(tienda_id: int, datos: dict):
-    await database.execute(tiendas_table.update().where(tiendas_table.c.id == tienda_id).values(**datos))
+    campos_json = ["patron", "empleados", "inventario", "ventas", "cortes", "dispositivos_registrados"]
+    datos_serializados = datos.copy()
+    
+    for campo in campos_json:
+        if campo in datos_serializados:
+            datos_serializados[campo] = json.dumps(datos_serializados[campo])
+    
+    await database.execute(
+        tiendas_table.update()
+        .where(tiendas_table.c.id == tienda_id)
+        .values(**datos_serializados)
+    )
+
 
 # ---------------------
 # Routers existentes
@@ -265,14 +279,13 @@ async def editar_empleado(tienda_id: int, empleado_id: int, data: EmpleadoUpdate
     # Actualizar préstamos si vienen
     if "prestamos" in update_dict:
         for prestamo in update_dict["prestamos"]:
-            if prestamo.id:
-                # buscar y actualizar
-                existing = next((p for p in empleado["prestamos"] if p["id"] == prestamo.id), None)
-                if existing:
-                    if prestamo.cantidad is not None:
-                        existing["cantidad"] = prestamo.cantidad
-                    if prestamo.descripcion is not None:
-                        existing["descripcion"] = prestamo.descripcion
+            prestamo_id = prestamo.get("id")
+            existing = next((p for p in empleado["prestamos"] if p["id"] == prestamo_id), None)
+            if existing:
+                if "cantidad" in prestamo:
+                    existing["cantidad"] = float(prestamo["cantidad"])
+                if "pendiente" in prestamo:
+                    existing["pendiente"] = prestamo["pendiente"]
             else:
                 # nuevo préstamo
                 nuevo_id = (max([p["id"] for p in empleado["prestamos"]] + [0]) + 1)
