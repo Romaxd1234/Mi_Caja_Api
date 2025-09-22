@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, 
 # ---------------------
 # Base de datos
 # ---------------------
-DATABASE_URL = "postgresql://invex_db_user:uR4BGxN3VLcanhCdVSO6laFUgtzzCiwG@dpg-d2kacbv5r7bs73ekh5bg-a.oregon-postgres.render.com:5432/invex_db"
+DATABASE_URL = "postgresql://postgres:JakeAG1234@db.bkenrvxjxdtvwhdstspn.supabase.co:5432/postgres"
 database = Database(DATABASE_URL)
 metadata = MetaData()
 
