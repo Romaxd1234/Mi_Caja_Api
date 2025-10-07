@@ -19,7 +19,12 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL and "sslmode" not in DATABASE_URL:
     DATABASE_URL += "?sslmode=require"
 
-database = Database(DATABASE_URL)
+database = Database(
+    DATABASE_URL,
+    min_size=1,   # mínimo de conexiones
+    max_size=5    # máximo de conexiones simultáneas (puedes ajustar a 3-5 según carga)
+)
+
 metadata = MetaData()
 engine = create_engine(DATABASE_URL)
 
