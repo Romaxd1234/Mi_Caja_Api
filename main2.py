@@ -578,13 +578,19 @@ async def eliminar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int):
 @app.on_event("startup")
 async def startup():
     print("🚀 Aplicación iniciando... (Render Free)")
-    # No forzamos conexión aquí
-    # Solo sincronizamos las tablas una vez (bloque try/catch para evitar errores si DB aún no responde)
+    try:
+        await database.connect()
+        print("✅ Conexión establecida con la base de datos")
+    except Exception as e:
+        print(f"⚠️ No se pudo conectar en startup: {e}")
+
+    # Crear tablas si es necesario
     try:
         metadata.create_all(engine)
         print("✅ Tablas sincronizadas correctamente")
     except Exception as e:
         print(f"⚠️ No se pudo sincronizar tablas al inicio: {e}")
+
 
 @app.on_event("shutdown")
 async def shutdown():
