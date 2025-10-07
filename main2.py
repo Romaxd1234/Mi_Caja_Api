@@ -14,7 +14,9 @@ import os
 # Base de datos
 # ---------------------
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = "postgresql+asyncpg://postgres.bkenrvxjxdtvwhdstspn:JakeAG1234@aws-1-us-east-2.pooler.supabase.com:5432/postgres"
+
+
 
 if DATABASE_URL and "sslmode" not in DATABASE_URL:
     DATABASE_URL += "?sslmode=require"
@@ -26,7 +28,8 @@ database = Database(
 )
 
 metadata = MetaData()
-engine = create_engine(DATABASE_URL)
+sync_database_url = DATABASE_URL.replace("+asyncpg", "")
+engine = create_engine(sync_database_url)
 
 tiendas_table = Table(
     "tiendas",
@@ -554,8 +557,20 @@ async def eliminar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int):
 
 @app.on_event("startup")
 async def startup():
-    await database.connect()
+    # Reintentos de conexión a la base de datos
+    import asyncio
+    for i in range(5):
+        try:
+            await database.connect()
+            print("✅ Conexión exitosa a la base de datos")
+            break
+        except Exception as e:
+            print(f"⏳ Falló la conexión a la base de datos (intento {i+1}/5): {e}")
+            await asyncio.sleep(3)
+    else:
+        raise Exception("🚨 No se pudo conectar a la base de datos después de varios intentos")
 
+    # Crear tablas con reintentos
     for i in range(5):
         try:
             metadata.create_all(engine)
