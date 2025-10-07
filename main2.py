@@ -52,7 +52,12 @@ tiendas_table = Table(
 # ---------------------
 # FastAPI
 # ---------------------
-app = FastAPI(title="API Tiendas Completa")
+#app = FastAPI(title="API Tiendas Completa")
+app = FastAPI(
+    title="API Tiendas Completa",
+    version="0.1.0",
+    debug=True
+)
 
 # ---------------------
 # Modelos
