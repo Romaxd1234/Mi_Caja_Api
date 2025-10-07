@@ -59,6 +59,21 @@ app = FastAPI(
     debug=True
 )
 
+@app.middleware("http")
+async def db_connection_middleware(request, call_next):
+    if not database.is_connected:
+        try:
+            print("⏳ Conectando a la base de datos en middleware...")
+            await database.connect()
+            print("✅ Conexión establecida desde middleware")
+        except Exception as e:
+            print(f"❌ Error al conectar en middleware: {e}")
+            from starlette.responses import JSONResponse
+            return JSONResponse({"detail": "No se pudo conectar a la base de datos"}, status_code=500)
+
+    response = await call_next(request)
+    return response
+
 # ---------------------
 # Modelos
 # ---------------------
@@ -562,30 +577,20 @@ async def eliminar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int):
 
 @app.on_event("startup")
 async def startup():
-    import asyncio
-    for i in range(10):  # le damos más tiempo
-        try:
-            await database.connect()
-            print("✅ Conexión exitosa a la base de datos")
-            return
-        except Exception as e:
-            print(f"⏳ Falló la conexión a la base de datos (intento {i+1}/10): {e}")
-            await asyncio.sleep(5)
-    print("⚠️ No se pudo conectar a la base al iniciar. Se intentará más tarde en las peticiones.")
-
-    # Crear tablas con reintentos
-    for i in range(5):
-        try:
-            metadata.create_all(engine)
-            print("✅ Tablas sincronizadas correctamente")
-            break
-        except OperationalError as e:
-            print(f"⏳ Base de datos no disponible (intento {i+1}/5): {e}")
-            time.sleep(3)
+    print("🚀 Aplicación iniciando... (Render Free)")
+    # No forzamos conexión aquí
+    # Solo sincronizamos las tablas una vez (bloque try/catch para evitar errores si DB aún no responde)
+    try:
+        metadata.create_all(engine)
+        print("✅ Tablas sincronizadas correctamente")
+    except Exception as e:
+        print(f"⚠️ No se pudo sincronizar tablas al inicio: {e}")
 
 @app.on_event("shutdown")
 async def shutdown():
+    print("🛑 Cerrando conexión a la base de datos...")
     await database.disconnect()
+    print("✅ Conexión cerrada correctamente")
 
 
 # ---------------------
