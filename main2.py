@@ -14,7 +14,7 @@ import os
 # Base de datos
 # ---------------------
 
-DATABASE_URL = "postgresql+asyncpg://postgres.bkenrvxjxdtvwhdstspn:JakeAG1234@aws-1-us-east-2.pooler.supabase.com:5432/postgres"
+DATABASE_URL = "postgresql+asyncpg://postgres.bkenrvxjxdtvwhdstspn:JakeAG1234@aws-1-us-east-2.pooler.supabase.com:6543/postgres"
 
 
 
