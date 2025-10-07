@@ -8,13 +8,20 @@ from sqlalchemy import Boolean
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, JSON
 import time
 from sqlalchemy.exc import OperationalError
+import os
 
 # ---------------------
 # Base de datos
 # ---------------------
-DATABASE_URL = "postgresql://postgres.bkenrvxjxdtvwhdstspn:JakeAG1234@aws-1-us-east-2.pooler.supabase.com:5432/postgres"
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL and "sslmode" not in DATABASE_URL:
+    DATABASE_URL += "?sslmode=require"
+
 database = Database(DATABASE_URL)
 metadata = MetaData()
+engine = create_engine(DATABASE_URL)
 
 tiendas_table = Table(
     "tiendas",
@@ -32,7 +39,7 @@ tiendas_table = Table(
     Column("permitir_ventas_fuera_inventario", Boolean, default=False) 
 )
 
-engine = create_engine(DATABASE_URL)
+
 
 # ---------------------
 # FastAPI
