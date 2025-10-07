@@ -557,18 +557,16 @@ async def eliminar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int):
 
 @app.on_event("startup")
 async def startup():
-    # Reintentos de conexión a la base de datos
     import asyncio
-    for i in range(5):
+    for i in range(10):  # le damos más tiempo
         try:
             await database.connect()
             print("✅ Conexión exitosa a la base de datos")
-            break
+            return
         except Exception as e:
-            print(f"⏳ Falló la conexión a la base de datos (intento {i+1}/5): {e}")
-            await asyncio.sleep(3)
-    else:
-        raise Exception("🚨 No se pudo conectar a la base de datos después de varios intentos")
+            print(f"⏳ Falló la conexión a la base de datos (intento {i+1}/10): {e}")
+            await asyncio.sleep(5)
+    print("⚠️ No se pudo conectar a la base al iniciar. Se intentará más tarde en las peticiones.")
 
     # Crear tablas con reintentos
     for i in range(5):
