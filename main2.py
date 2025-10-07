@@ -608,5 +608,3 @@ app.include_router(dispositivos_router)
 @app.get("/")
 async def raiz():
     return {"mensaje": "API Tiendas completa lista para usar"}
-
-#mod
