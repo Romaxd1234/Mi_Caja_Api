@@ -6,6 +6,8 @@ from datetime import datetime
 from databases import Database
 from sqlalchemy import Boolean 
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, JSON
+import time
+from sqlalchemy.exc import OperationalError
 
 # ---------------------
 # Base de datos
@@ -31,7 +33,6 @@ tiendas_table = Table(
 )
 
 engine = create_engine(DATABASE_URL)
-metadata.create_all(engine)
 
 # ---------------------
 # FastAPI
@@ -538,13 +539,24 @@ async def eliminar_prestamo(tienda_id: int, empleado_id: int, prestamo_id: int):
 # ---------------------
 # Eventos Startup / Shutdown
 # ---------------------
+
 @app.on_event("startup")
 async def startup():
     await database.connect()
 
+    for i in range(5):
+        try:
+            metadata.create_all(engine)
+            print("✅ Tablas sincronizadas correctamente")
+            break
+        except OperationalError as e:
+            print(f"⏳ Base de datos no disponible (intento {i+1}/5): {e}")
+            time.sleep(3)
+
 @app.on_event("shutdown")
 async def shutdown():
     await database.disconnect()
+
 
 # ---------------------
 # Incluir routers
